@@ -84,6 +84,8 @@ async def ler_dados_snmp():
         for site_id, config in list(SITES.items()):
             ip = config["ip"]
             tel = telemetria_atual.get(site_id, {})
+            alm = alarmes_ativos.get(site_id, {})
+            status_anterior = tel.get("status_conexao", "Desconectado")
             try:
                 errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
                     snmp_engine,
@@ -96,12 +98,29 @@ async def ler_dados_snmp():
                     ObjectType(ObjectIdentity(OID_CAPACIDADE))
                 )
 
-                if errorIndication:
-                    tel["status_conexao"] = "Falha de Conexão"
-                elif errorStatus:
-                    tel["status_conexao"] = "Erro de Leitura"
+                if errorIndication or errorStatus:
+                    novo_status = "Falha de Conexão" if errorIndication else "Erro de Leitura"
+                    tel["status_conexao"] = novo_status
+                    tel["tensao_barramento"] = 0.0
+                    tel["corrente_bateria"] = 0.0
+                    tel["temperatura_bateria"] = 0.0
+                    tel["capacidade_bateria"] = 0.0
+                    tel["autonomia_estimada"] = "--"
+                    
+                    if status_anterior == "Online" or status_anterior == "Desconectado":
+                        evento = f"Perda de Comunicação SNMP ({novo_status})"
+                        alm["ultimo_alarme"] = evento
+                        alm["severidade"] = "Crítica"
+                        alm["status_painel"] = "Inacessível"
+                        salvar_alarme_db(site_id, evento, "Crítica", "Inacessível")
                 else:
                     tel["status_conexao"] = "Online"
+                    if status_anterior != "Online" and status_anterior != "Desconectado":
+                        evento = "Comunicação Restabelecida"
+                        alm["ultimo_alarme"] = evento
+                        alm["severidade"] = "Baixa"
+                        alm["status_painel"] = "Normal"
+                        salvar_alarme_db(site_id, evento, "Baixa", "Normal")
                     valores = [v[1] for v in varBinds]
                     
                     tel["tensao_barramento"] = round(float(valores[0]) / 100.0, 2)
@@ -116,6 +135,11 @@ async def ler_dados_snmp():
                         tel["autonomia_estimada"] = "AC Normal"
             except Exception as e:
                 tel["status_conexao"] = "Erro Crítico"
+                tel["tensao_barramento"] = 0.0
+                tel["corrente_bateria"] = 0.0
+                tel["temperatura_bateria"] = 0.0
+                tel["capacidade_bateria"] = 0.0
+                tel["autonomia_estimada"] = "--"
                 
         # Aguarda 2 segundos antes de sondar o painel novamente
         await asyncio.sleep(2)
@@ -193,6 +217,9 @@ async def simular_alarmes():
     while True:
         await asyncio.sleep(4) 
         
+        if not SIMULAR_MODULO:
+            continue
+        
         for site_id in list(SITES.keys()):
             if site_id not in indices: indices[site_id] = 0
             idx = indices.get(site_id, 0)
@@ -209,6 +236,7 @@ async def simular_alarmes():
 
 def init_db():
     """Cria o banco de dados SQLite e a tabela caso não existam"""
+    global SIMULAR_MODULO
     conn = sqlite3.connect('telemetria.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -243,6 +271,20 @@ def init_db():
             status TEXT
         )
     ''')
+    
+    # Tabela de Configurações Globais
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS config (
+            chave TEXT PRIMARY KEY,
+            valor TEXT
+        )
+    ''')
+    cursor.execute("SELECT valor FROM config WHERE chave='SIMULAR_MODULO'")
+    row = cursor.fetchone()
+    if row:
+        SIMULAR_MODULO = (row[0] == 'true')
+    else:
+        cursor.execute("INSERT INTO config (chave, valor) VALUES ('SIMULAR_MODULO', 'true')")
     
     # Migração segura para quem já criou o banco sem o site_id
     try:
@@ -296,23 +338,69 @@ async def iniciar_background_tasks():
     init_db()
     asyncio.create_task(salvar_historico_db())
     
-    if SIMULAR_MODULO:
-        asyncio.create_task(ler_dados_snmp())
-        asyncio.create_task(simular_alarmes())
-    else:
-        # 1. Liga o leitor SNMP GET real
-        asyncio.create_task(ler_dados_snmp())
-        
-        # 2. Abre a porta UDP 1162 para escutar os Traps SNMP reais
-        loop = asyncio.get_running_loop()
-        await loop.create_datagram_endpoint(
-            lambda: SNMPTrapReceiver(),
-            local_addr=('0.0.0.0', 1162)
-        )
+    # Liga os leitores e simuladores (eles checam o modo SIMULAR_MODULO internamente a cada passo)
+    asyncio.create_task(ler_dados_snmp())
+    asyncio.create_task(simular_alarmes())
+    
+    # Abre a porta UDP 1162 incondicionalmente para escutar os Traps SNMP reais de imediato
+    loop = asyncio.get_running_loop()
+    await loop.create_datagram_endpoint(
+        lambda: SNMPTrapReceiver(),
+        local_addr=('0.0.0.0', 1162)
+    )
 
 @app.get("/api/sites")
 async def get_sites():
     return SITES
+
+class SimuladorConfig(BaseModel):
+    ativo: bool
+
+@app.get("/api/config/simulador")
+def get_simulador():
+    return {"ativo": SIMULAR_MODULO}
+
+@app.post("/api/config/simulador")
+async def set_simulador(cfg: SimuladorConfig):
+    global SIMULAR_MODULO
+    try:
+        modo_anterior = SIMULAR_MODULO
+        novo_modo = cfg.ativo
+        
+        conn = sqlite3.connect('telemetria.db', timeout=10)
+        cursor = conn.cursor()
+        cursor.execute("REPLACE INTO config (chave, valor) VALUES ('SIMULAR_MODULO', ?)", ('true' if novo_modo else 'false',))
+        
+        # Zera o banco de dados e as variáveis se houver mudança de modo
+        if modo_anterior != novo_modo:
+            try:
+                cursor.execute("DELETE FROM historico")
+                cursor.execute("DELETE FROM alarmes_historico")
+                cursor.execute("DELETE FROM sqlite_sequence WHERE name='historico'")
+                cursor.execute("DELETE FROM sqlite_sequence WHERE name='alarmes_historico'")
+            except Exception: pass
+                
+            for sid in list(SITES.keys()):
+                if sid in telemetria_atual:
+                    telemetria_atual[sid].update({
+                        "tensao_barramento": 0.0, "corrente_bateria": 0.0,
+                        "temperatura_bateria": 0.0, "capacidade_bateria": 0.0,
+                        "autonomia_estimada": "Aguardando Leitura...", "status_conexao": "Conectando..." if not novo_modo else "Simulador Online"
+                    })
+                if sid in alarmes_ativos:
+                    alarmes_ativos[sid].update({
+                        "ultimo_alarme": "Aguardando rede..." if not novo_modo else "Nenhum evento registrado", 
+                        "status_painel": "Desconhecido" if not novo_modo else "Normal", 
+                        "severidade": "Baixa"
+                    })
+                    
+        conn.commit()
+        conn.close()
+        
+        SIMULAR_MODULO = novo_modo
+        return {"status": "sucesso", "ativo": SIMULAR_MODULO}
+    except Exception as e:
+        return {"status": "erro", "mensagem": str(e)}
 
 class SiteConfig(BaseModel):
     site_id: str

@@ -73,6 +73,8 @@
         .table-sites { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
         .table-sites th, .table-sites td { padding: 10px; border-bottom: 1px solid #444; text-align: left; }
         body.light-mode .table-sites th, body.light-mode .table-sites td { border-bottom: 1px solid #e3e6f0; }
+        .cfg-box { background-color: #1a1a1a; border: 1px solid #444; border-radius: 6px; padding: 10px 15px; margin-bottom: 20px; }
+        body.light-mode .cfg-box { background-color: #f8f9fc; border: 1px solid #cbd5e1; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -197,6 +199,15 @@
     <div id="modal-config" class="modal-overlay">
         <div class="modal-content">
             <h2 style="margin-top:0;">⚙️ Configurações de Data Centers (MultiSite)</h2>
+            
+            <div class="cfg-box" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong id="label_sim_titulo" style="display: block; margin-bottom: 3px; color: #4CAF50;">🎮 Modo Simulador Ativo</strong>
+                    <span id="label_sim_desc" style="font-size: 12px; color: #888;">Desmarque para iniciar a leitura dos painéis físicos na rede via SNMP.</span>
+                </div>
+                <input type="checkbox" id="toggle_simulador" onchange="salvarSimulador()" style="width: 20px; height: 20px; cursor: pointer; accent-color: #4CAF50;">
+            </div>
+            
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                 <input type="text" id="cfg_id" placeholder="ID (ex: s3)" style="width: 70px;">
                 <input type="text" id="cfg_nome" placeholder="Nome do Data Center" style="flex: 1;">
@@ -382,11 +393,57 @@
         // --- Modal de Configurações de Rede ---
         async function abrirModalConfig() {
             document.getElementById('modal-config').style.display = 'flex';
+            await carregarSimulador();
             await renderizarTabelaSites();
         }
 
         function fecharModalConfig() {
             document.getElementById('modal-config').style.display = 'none';
+        }
+
+        function atualizarTextosSimulador(ativo) {
+            const titulo = document.getElementById('label_sim_titulo');
+            const desc = document.getElementById('label_sim_desc');
+            if(ativo) {
+                titulo.innerText = "🎮 Modo Simulador Ativo";
+                titulo.style.color = "#4CAF50";
+                desc.innerText = "Desmarque para iniciar a leitura dos painéis físicos na rede via SNMP.";
+            } else {
+                titulo.innerText = "📡 Modo Real (SNMP) Ativo";
+                titulo.style.color = "#2196F3";
+                desc.innerText = "Marque esta caixa caso queira voltar a utilizar dados fictícios gerados pelo servidor.";
+            }
+        }
+
+        async function carregarSimulador() {
+            try {
+                const res = await fetch('/api/config/simulador');
+                const data = await res.json();
+                document.getElementById('toggle_simulador').checked = data.ativo;
+                atualizarTextosSimulador(data.ativo);
+            } catch(e) {}
+        }
+
+        async function salvarSimulador() {
+            const ativo = document.getElementById('toggle_simulador').checked;
+            try {
+                const res = await fetch('/api/config/simulador', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ativo: ativo }) });
+                const data = await res.json();
+                
+                if (data.status === 'erro') throw new Error(data.mensagem);
+                
+                atualizarTextosSimulador(ativo);
+                
+                // Limpa os gráficos imediatamente da tela
+                graficoTensao.data.labels = []; graficoTensao.data.datasets[0].data = [];
+                graficoCorrenteTemp.data.labels = []; graficoCorrenteTemp.data.datasets[0].data = []; graficoCorrenteTemp.data.datasets[1].data = [];
+                graficoTensao.update(); graficoCorrenteTemp.update();
+                
+                alert(ativo ? "Modo Simulador ATIVADO.\nBanco de dados histórico foi zerado." : "Modo Real (SNMP) ATIVADO!\nBanco de dados histórico foi zerado. Aguardando a rede física...");
+            } catch(e) {
+                alert("Erro ao salvar configuração: " + e.message);
+                carregarSimulador(); // Reverte a chave para o estado real salvo no banco
+            }
         }
 
         async function renderizarTabelaSites() {
