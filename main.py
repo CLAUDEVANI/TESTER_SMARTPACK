@@ -9,21 +9,28 @@ from pysnmp.hlapi.asyncio import *
 
 app = FastAPI(title="Tester_Smartpack", description="API de Integração com Eltek Smartpack S")
 
-# Memória da Telemetria (SNMP GET)
-telemetria_atual = {
-    "tensao_barramento": 0.0,
-    "corrente_bateria": 0.0,
-    "temperatura_bateria": 0.0,
-    "capacidade_bateria": 0.0,
-    "status_conexao": "Desconectado"
+# --- DICIONÁRIO MULTISITE ---
+SITES = {
+    "s1": {"nome": "Data Center Alpha (Matriz)", "ip": "192.168.10.20"},
+    "s2": {"nome": "Site Beta (Filial)", "ip": "192.168.10.21"}
 }
 
-# Memória dos Alarmes (SNMP)
-alarmes_ativos = {
-    "ultimo_alarme": "Nenhum evento registrado",
-    "status_painel": "Normal",
-    "severidade": "Baixa"
-}
+telemetria_atual = {}
+alarmes_ativos = {}
+for sid in SITES:
+    telemetria_atual[sid] = {
+        "tensao_barramento": 0.0,
+        "corrente_bateria": 0.0,
+        "temperatura_bateria": 0.0,
+        "capacidade_bateria": 0.0,
+        "autonomia_estimada": "Calculando...",
+        "status_conexao": "Desconectado"
+    }
+    alarmes_ativos[sid] = {
+        "ultimo_alarme": "Nenhum evento registrado",
+        "status_painel": "Normal",
+        "severidade": "Baixa"
+    }
 
 # --- CONFIGURAÇÃO DE AMBIENTE ---
 SIMULAR_MODULO = True  # Mude para False quando for conectar no painel real
@@ -31,6 +38,7 @@ SIMULAR_MODULO = True  # Mude para False quando for conectar no painel real
 ELTEK_IP = "192.168.10.20"  # IP Padrão de fábrica do Smartpack S
 SNMP_PORT = 161
 SNMP_COMMUNITY = "sua_senha_aqui"  # Comunidade de leitura (verifique no painel)
+CAPACIDADE_BANCO_AH = 400.0  # Configuração: Capacidade total do banco de baterias em Ampere-hora
 
 # OIDs SNMP (Substitua estes OIDs de exemplo pelos numéricos exatos do seu arquivo MIB)
 OID_TENSAO = '1.3.6.1.4.1.12148.10.2.4.1.1.0' 
@@ -43,54 +51,70 @@ async def ler_dados_snmp():
     if SIMULAR_MODULO:
         print("📡 Modo SIMULADOR SNMP GET ativado!")
         while True:
-            telemetria_atual["status_conexao"] = "Simulador Online"
-            # Valores flutuantes realistas para painel de 48V
-            telemetria_atual["tensao_barramento"] = round(random.uniform(53.0, 54.2), 2)
-            telemetria_atual["corrente_bateria"] = round(random.uniform(10.0, 35.5), 2)
-            telemetria_atual["temperatura_bateria"] = round(random.uniform(22.0, 26.5), 1)
-            telemetria_atual["capacidade_bateria"] = round(random.uniform(95.0, 100.0), 1)
+            for site_id in SITES:
+                tel = telemetria_atual[site_id]
+                alm = alarmes_ativos[site_id]
+                tel["status_conexao"] = "Simulador Online"
+                tel["corrente_bateria"] = round(random.uniform(10.0, 35.5), 2)
+                tel["temperatura_bateria"] = round(random.uniform(22.0, 26.5), 1)
+                
+                if alm.get("ultimo_alarme") == "Falha de Rede (AC)":
+                    tel["tensao_barramento"] = round(random.uniform(47.0, 50.5), 2)
+                    tel["capacidade_bateria"] = max(0.0, tel["capacidade_bateria"] - 0.5)
+                else:
+                    base_v = 53.5 if site_id == "s1" else 54.0
+                    tel["tensao_barramento"] = round(random.uniform(base_v - 0.3, base_v + 0.2), 2)
+                    tel["capacidade_bateria"] = min(100.0, tel["capacidade_bateria"] + 0.5)
+                    
+                carga_ah = CAPACIDADE_BANCO_AH * (tel["capacidade_bateria"] / 100.0)
+                if tel["tensao_barramento"] < 51.0 and tel["corrente_bateria"] > 0:
+                    horas = carga_ah / tel["corrente_bateria"]
+                    tel["autonomia_estimada"] = f"{round(horas, 1)} Horas"
+                else:
+                    tel["autonomia_estimada"] = "AC Normal (Flutuação)"
+
             await asyncio.sleep(2)
         return
 
     snmp_engine = SnmpEngine()
     
     while True:
-        try:
-            # Executa a requisição SNMP GET para os 4 OIDs de uma só vez
-            errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
-                snmp_engine,
-                CommunityData(SNMP_COMMUNITY, mpModel=1), # mpModel=1 indica SNMPv2c
-                UdpTransportTarget((ELTEK_IP, SNMP_PORT)),
-                ContextData(),
-                ObjectType(ObjectIdentity(OID_TENSAO)),
-                ObjectType(ObjectIdentity(OID_CORRENTE)),
-                ObjectType(ObjectIdentity(OID_TEMPERATURA)),
-                ObjectType(ObjectIdentity(OID_CAPACIDADE))
-            )
+        for site_id, config in SITES.items():
+            ip = config["ip"]
+            tel = telemetria_atual[site_id]
+            try:
+                errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
+                    snmp_engine,
+                    CommunityData(SNMP_COMMUNITY, mpModel=1),
+                    UdpTransportTarget((ip, SNMP_PORT), timeout=1.5, retries=1),
+                    ContextData(),
+                    ObjectType(ObjectIdentity(OID_TENSAO)),
+                    ObjectType(ObjectIdentity(OID_CORRENTE)),
+                    ObjectType(ObjectIdentity(OID_TEMPERATURA)),
+                    ObjectType(ObjectIdentity(OID_CAPACIDADE))
+                )
 
-            if errorIndication:
-                telemetria_atual["status_conexao"] = "Falha de Conexão"
-                print(f"Falha ao conectar no SNMP {ELTEK_IP}: {errorIndication}")
-            elif errorStatus:
-                telemetria_atual["status_conexao"] = "Erro de Leitura"
-                print(f"Erro SNMP: {errorStatus.prettyPrint()}")
-            else:
-                telemetria_atual["status_conexao"] = "Online"
+                if errorIndication:
+                    tel["status_conexao"] = "Falha de Conexão"
+                elif errorStatus:
+                    tel["status_conexao"] = "Erro de Leitura"
+                else:
+                    tel["status_conexao"] = "Online"
+                    valores = [v[1] for v in varBinds]
+                    
+                    tel["tensao_barramento"] = round(float(valores[0]) / 100.0, 2)
+                    tel["corrente_bateria"] = round(float(valores[1]) / 10.0, 2)
+                    tel["temperatura_bateria"] = round(float(valores[2]), 1)
+                    tel["capacidade_bateria"] = round(float(valores[3]), 1)
+                    
+                    carga_ah = CAPACIDADE_BANCO_AH * (tel["capacidade_bateria"] / 100.0)
+                    if tel["tensao_barramento"] < 51.0 and tel["corrente_bateria"] > 0:
+                        tel["autonomia_estimada"] = f"{round(carga_ah / tel['corrente_bateria'], 1)} Horas"
+                    else:
+                        tel["autonomia_estimada"] = "AC Normal"
+            except Exception as e:
+                tel["status_conexao"] = "Erro Crítico"
                 
-                # varBinds é uma lista de tuplas (OID, Valor). Extraímos apenas os valores numéricos
-                valores = [v[1] for v in varBinds]
-                
-                # OBS: O Eltek costuma mandar valores multiplicados por 10 ou 100 para evitar enviar decimais pela rede.
-                # Ajuste a divisão das linhas abaixo de acordo com o que visualizar ao conectar o cabo.
-                telemetria_atual["tensao_barramento"] = round(float(valores[0]) / 100.0, 2)
-                telemetria_atual["corrente_bateria"] = round(float(valores[1]) / 10.0, 2)
-                telemetria_atual["temperatura_bateria"] = round(float(valores[2]), 1)
-                telemetria_atual["capacidade_bateria"] = round(float(valores[3]), 1)
-                
-        except Exception as e:
-            print(f"Erro inesperado no SNMP GET: {e}")
-            telemetria_atual["status_conexao"] = "Erro Crítico"
-            
         # Aguarda 2 segundos antes de sondar o painel novamente
         await asyncio.sleep(2)
 
@@ -105,7 +129,14 @@ class SNMPTrapReceiver(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         # Quando um pacote UDP chega do IP do painel, disparamos o alarme
-        print(f"⚠️ Trap SNMP recebido de {addr}!")
+        ip_origem = addr[0]
+        site_detectado = "s1"
+        for sid, conf in SITES.items():
+            if conf["ip"] == ip_origem:
+                site_detectado = sid
+                break
+        
+        print(f"⚠️ Trap SNMP recebido de {site_detectado} ({ip_origem})!")
         
         # Extraindo texto visível dentro do pacote SNMP bruto
         pacote_bruto = data.decode('ascii', errors='ignore').lower()
@@ -120,20 +151,22 @@ class SNMPTrapReceiver(asyncio.DatagramProtocol):
             evento = "Evento SNMP Genérico"
             sev = "Atenção"
 
-        alarmes_ativos["ultimo_alarme"] = evento
-        alarmes_ativos["severidade"] = sev
-        alarmes_ativos["status_painel"] = "Em Alarme"
-        salvar_alarme_db(evento, sev, "Em Alarme")
+        alm = alarmes_ativos[site_detectado]
+        alm["ultimo_alarme"] = evento
+        alm["severidade"] = sev
+        alm["status_painel"] = "Em Alarme"
+        salvar_alarme_db(site_detectado, evento, sev, "Em Alarme")
 
-def salvar_alarme_db(evento, severidade, status):
+def salvar_alarme_db(site_id, evento, severidade, status):
     """Salva um novo evento de alarme no banco de dados local"""
     try:
+        agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         conn = sqlite3.connect('telemetria.db')
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO alarmes_historico (evento, severidade, status)
-            VALUES (?, ?, ?)
-        ''', (evento, severidade, status))
+            INSERT INTO alarmes_historico (site_id, timestamp, evento, severidade, status)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (site_id, agora, evento, severidade, status))
         conn.commit()
         conn.close()
     except Exception as e:
@@ -154,23 +187,22 @@ async def simular_alarmes():
         ("Porta do Gabinete Aberta", "Baixa", "Atenção")
     ]
     
-    indice = 0
-    ultimo_estado = ""
+    indices = {s: i for i, s in enumerate(SITES.keys())} # Inicia em pontos diferentes
     while True:
-        # Muda o status a cada 4 segundos para dar tempo de ver todos no painel
         await asyncio.sleep(4) 
         
-        evento = eventos[indice]
-        
-        if ultimo_estado != evento[0]:
-            alarmes_ativos["ultimo_alarme"] = evento[0]
-            alarmes_ativos["severidade"] = evento[1]
-            alarmes_ativos["status_painel"] = evento[2]
-            salvar_alarme_db(evento[0], evento[1], evento[2])
-            ultimo_estado = evento[0]
-        
-        # Avança para o próximo alarme. Se chegar no último, volta para o primeiro (loop)
-        indice = (indice + 1) % len(eventos)
+        for site_id in SITES:
+            idx = indices[site_id]
+            evento = eventos[idx]
+            
+            alm = alarmes_ativos[site_id]
+            if alm["ultimo_alarme"] != evento[0]:
+                alm["ultimo_alarme"] = evento[0]
+                alm["severidade"] = evento[1]
+                alm["status_painel"] = evento[2]
+                salvar_alarme_db(site_id, evento[0], evento[1], evento[2])
+            
+            indices[site_id] = (idx + 1) % len(eventos)
 
 def init_db():
     """Cria o banco de dados SQLite e a tabela caso não existam"""
@@ -179,6 +211,7 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id TEXT DEFAULT 's1',
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             tensao REAL,
             corrente REAL,
@@ -191,12 +224,22 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alarmes_historico (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id TEXT DEFAULT 's1',
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento TEXT,
             severidade TEXT,
             status TEXT
         )
     ''')
+    
+    # Migração segura para quem já criou o banco sem o site_id
+    try:
+        cursor.execute("ALTER TABLE historico ADD COLUMN site_id TEXT DEFAULT 's1'")
+    except sqlite3.OperationalError: pass
+    try:
+        cursor.execute("ALTER TABLE alarmes_historico ADD COLUMN site_id TEXT DEFAULT 's1'")
+    except sqlite3.OperationalError: pass
+    
     conn.commit()
     conn.close()
 
@@ -206,20 +249,24 @@ async def salvar_historico_db():
     while True:
         await asyncio.sleep(60) # Espera 60 segundos
         try:
+            agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             conn = sqlite3.connect('telemetria.db')
             cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO historico (tensao, corrente, temperatura, capacidade)
-                VALUES (?, ?, ?, ?)
-            ''', (
-                telemetria_atual["tensao_barramento"],
-                telemetria_atual["corrente_bateria"],
-                telemetria_atual["temperatura_bateria"],
-                telemetria_atual["capacidade_bateria"]
-            ))
+            for site_id, tel in telemetria_atual.items():
+                cursor.execute('''
+                    INSERT INTO historico (site_id, timestamp, tensao, corrente, temperatura, capacidade)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    site_id,
+                    agora,
+                    tel["tensao_barramento"],
+                    tel["corrente_bateria"],
+                    tel["temperatura_bateria"],
+                    tel["capacidade_bateria"]
+                ))
             conn.commit()
             conn.close()
-            print(f"💾 Histórico salvo no BD: {telemetria_atual['tensao_barramento']}V")
+            print("💾 Histórico salvo no BD com sucesso.")
         except Exception as e:
             print(f"Erro ao salvar no SQLite: {e}")
 
@@ -244,30 +291,64 @@ async def iniciar_background_tasks():
             local_addr=('0.0.0.0', 1162)
         )
 
+@app.get("/api/sites")
+async def get_sites():
+    return SITES
+
 @app.get("/api/telemetria")
-async def get_telemetria():
-    return telemetria_atual
+async def get_telemetria(site_id: str = "s1"):
+    return telemetria_atual.get(site_id, telemetria_atual["s1"])
 
 # --- NOVA ROTA PARA O APLICATIVO ---
 @app.get("/api/alarmes")
-async def get_alarmes():
-    """O cliente vai consumir essa rota para exibir status de falha"""
-    return alarmes_ativos
+async def get_alarmes(site_id: str = "s1"):
+    return alarmes_ativos.get(site_id, alarmes_ativos["s1"])
+
+# --- ROTA PARA ZERAR O BANCO DE DADOS ---
+@app.post("/api/reset")
+async def resetar_banco():
+    """Limpa todo o histórico de telemetria e alarmes do banco de dados"""
+    try:
+        conn = sqlite3.connect('telemetria.db')
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM historico")
+        cursor.execute("DELETE FROM alarmes_historico")
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='historico'")
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='alarmes_historico'")
+        conn.commit()
+        conn.close()
+        
+        # Reseta a memória local para sumir o alarme atual da tela
+        for sid in SITES:
+            alarmes_ativos[sid] = {
+                "ultimo_alarme": "Nenhum evento registrado",
+                "status_painel": "Normal",
+                "severidade": "Baixa"
+            }
+        return {"status": "sucesso"}
+    except Exception as e:
+        return {"status": "erro", "mensagem": str(e)}
 
 # --- ROTA PARA GERAÇÃO DO LAUDO PDF ---
 @app.get("/api/relatorio")
-def gerar_relatorio_pdf(data_inicio: str = None, data_fim: str = None):
+def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: str = None):
     """Gera um PDF com o histórico e análises baseado nos filtros de data"""
     try:
         from fpdf import FPDF
     except ImportError:
         return {"erro": "A biblioteca FPDF não está instalada. Rode: pip install fpdf"}
 
+    try:
+        import matplotlib.pyplot as plt
+        has_matplotlib = True
+    except ImportError:
+        has_matplotlib = False
+
     conn = sqlite3.connect('telemetria.db')
     cursor = conn.cursor()
     
-    query = "SELECT timestamp, tensao, corrente, temperatura, capacidade FROM historico WHERE 1=1"
-    params = []
+    query = "SELECT timestamp, tensao, corrente, temperatura, capacidade FROM historico WHERE site_id=?"
+    params = [site_id]
     
     # Aplica os filtros se existirem (formato de entrada do html: YYYY-MM-DDTHH:MM)
     if data_inicio:
@@ -281,8 +362,8 @@ def gerar_relatorio_pdf(data_inicio: str = None, data_fim: str = None):
     dados = cursor.fetchall()
     
     # --- Query dos Alarmes ---
-    query_al = "SELECT timestamp, evento, severidade, status FROM alarmes_historico WHERE 1=1"
-    params_al = []
+    query_al = "SELECT timestamp, evento, severidade, status FROM alarmes_historico WHERE site_id=?"
+    params_al = [site_id]
     if data_inicio:
         query_al += " AND timestamp >= ?"
         params_al.append(data_inicio.replace("T", " "))
@@ -296,78 +377,254 @@ def gerar_relatorio_pdf(data_inicio: str = None, data_fim: str = None):
 
     # Inicializa o PDF
     pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
     # Cabeçalho
+    nome_site = SITES.get(site_id, {}).get("nome", "Desconhecido")
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, txt="LAUDO TÉCNICO - AETHER GRID (SMARTPACK S)", ln=True, align='C')
-    pdf.set_font("Arial", size=10)
-    pdf.cell(0, 10, txt=f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", ln=True, align='C')
+    pdf.cell(0, 10, txt="LAUDO TÉCNICO DE ENERGIA E TELEMETRIA", ln=True, align='C')
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, txt=f"SISTEMA RETIFICADOR - {nome_site.upper()}", ln=True, align='C')
     pdf.ln(5)
     
-    # Análise Estatística (Resumo)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, txt="1. Resumo Analítico", ln=True)
+    # 1. Identificação e Responsabilidade Técnica
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="1. IDENTIFICAÇÃO E RESPONSABILIDADE TÉCNICA", ln=True)
     pdf.set_font("Arial", size=10)
+    pdf.multi_cell(0, 6, txt=(
+        "Responsável Técnico: [NOME DO SEU TÉCNICO / ENGENHEIRO]\n"
+        "Título: Técnico em Eletrotécnica / Graduando em Engenharia Elétrica\n"
+        "Registro (CREA/CRT): [000000000-0]\n"
+        "ART/TRT Vinculada: [NÚMERO DA ART OU TRT]\n\n"
+        "Equipamento Analisado: Controladora Eltek Smartpack S (Sistema DC)\n"
+        "Fabricante: Eltek / Delta\n"
+        "Número de Série do Chassi: [PREENCHER S/N]\n"
+        "Localização Física: Data Center Principal - Site Aether Grid\n"
+        f"Data da Emissão do Laudo: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    ))
+    pdf.ln(5)
+    
+    # 2. Objetivo e Metodologia
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="2. OBJETIVO E METODOLOGIA", ln=True)
+    pdf.set_font("Arial", size=10)
+    pdf.multi_cell(0, 6, txt=(
+        "Objetivo: Análise de falhas após evento crítico e avaliação preditiva/preventiva da infraestrutura "
+        "de energia ininterrupta em corrente contínua do Data Center.\n\n"
+        "Metodologia: Os dados foram extraídos do histórico automatizado do equipamento via protocolo SNMP "
+        "(Simple Network Management Protocol). Foram analisados OIDs de telemetria contínua e traps de falha."
+    ))
+    pdf.ln(5)
+
+    # 3. Referências Normativas
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="3. REFERÊNCIAS NORMATIVAS", ln=True)
+    pdf.set_font("Arial", size=10)
+    pdf.multi_cell(0, 6, txt=(
+        "- ABNT NBR 5410: Instalações elétricas de baixa tensão.\n"
+        "- ABNT NBR 14565: Cabeamento estruturado para edifícios comerciais e data centers.\n"
+        "- Manuais Técnicos de Operação e Manutenção do Fabricante (Eltek)."
+    ))
+    pdf.ln(5)
+    
+    # 4. Resumo Analítico
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="4. RESUMO ANALÍTICO DE TELEMETRIA", ln=True)
+    pdf.set_font("Arial", size=10)
+    temps = []
     if not dados:
-        pdf.cell(0, 10, txt="Nenhum registro encontrado para os filtros aplicados.", ln=True)
+        pdf.cell(0, 6, txt="Nenhum registro de telemetria encontrado para os filtros aplicados.", ln=True)
     else:
         tensoes = [d[1] for d in dados]
         correntes = [d[2] for d in dados]
-        pdf.cell(0, 8, txt=f"Total de Registros: {len(dados)}", ln=True)
-        pdf.cell(0, 8, txt=f"Tensão Barramento - Mínima: {min(tensoes):.2f}V | Máxima: {max(tensoes):.2f}V | Média: {(sum(tensoes)/len(tensoes)):.2f}V", ln=True)
-        pdf.cell(0, 8, txt=f"Corrente Bateria - Mínima: {min(correntes):.2f}A | Máxima: {max(correntes):.2f}A", ln=True)
-    
-    pdf.ln(5)
-    
-    # Tabela de Dados Brutos
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, txt="2. Registros de Telemetria", ln=True)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.cell(45, 8, "Data/Hora", border=1, align='C')
-    pdf.cell(35, 8, "Tensão (V)", border=1, align='C')
-    pdf.cell(35, 8, "Corrente (A)", border=1, align='C')
-    pdf.cell(35, 8, "Temperatura (C)", border=1, align='C')
-    pdf.cell(35, 8, "Capacidade (%)", border=1, align='C')
-    pdf.ln()
-    
-    pdf.set_font("Arial", size=8)
-    for linha in dados:
-        pdf.cell(45, 8, str(linha[0]), border=1, align='C')
-        pdf.cell(35, 8, f"{linha[1]:.2f}", border=1, align='C')
-        pdf.cell(35, 8, f"{linha[2]:.2f}", border=1, align='C')
-        pdf.cell(35, 8, f"{linha[3]:.1f}", border=1, align='C')
-        pdf.cell(35, 8, f"{linha[4]:.1f}", border=1, align='C')
-        pdf.ln()
+        temps = [d[3] for d in dados]
         
-    pdf.ln(10)
+        pdf.multi_cell(0, 6, txt=(
+            f"Amostras Analisadas no Período: {len(dados)}\n"
+            f"Tensão de Operação em Corrente Contínua (VCC): Mín {min(tensoes):.2f}V | Máx {max(tensoes):.2f}V | Média {(sum(tensoes)/len(tensoes)):.2f}V\n"
+            f"Corrente de Carga/Descarga dos Elementos Acumuladores: Pico Registrado de {max(correntes):.2f}A\n"
+            f"Temperatura do Banco de Baterias VRLA: Pico Registrado de {max(temps):.1f}°C"
+        ))
+        
+        # Renderização do Gráfico
+        if has_matplotlib:
+            datas_graf = [d[0].split(' ')[1] for d in dados] # Obtém apenas o horário
+            plt.figure(figsize=(10, 4))
+            plt.plot(datas_graf, tensoes, label='Tensão VCC (V)', color='#2196F3', linewidth=1.5)
+            plt.title("Estabilidade do Barramento DC no Período", fontsize=10)
+            plt.ylabel("Volts (V)")
+            plt.legend()
+            plt.grid(True, linestyle='--', alpha=0.5)
+            # Controla a poluição do eixo X
+            if len(datas_graf) > 10:
+                plt.xticks(datas_graf[::len(datas_graf)//10], rotation=30, fontsize=8)
+            else:
+                plt.xticks(rotation=30, fontsize=8)
+            plt.tight_layout()
+            plt.savefig("temp_chart.png")
+            plt.close()
+            
+            pdf.ln(2)
+            pdf.image("temp_chart.png", w=180)
+            os.remove("temp_chart.png")
     
-    # Tabela de Alarmes Brutos
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, txt="3. Historico de Eventos e Alarmes (SNMP)", ln=True)
-    if not dados_alarmes:
-        pdf.set_font("Arial", size=10)
-        pdf.cell(0, 10, txt="Nenhum evento registrado no periodo.", ln=True)
+    pdf.add_page()
+
+    # 5. Análise Crítica dos Dados
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="5. ANÁLISE CRÍTICA DOS EVENTOS E ALARMES", ln=True)
+    pdf.set_font("Arial", size=10)
+    
+    texto_analise = "Durante a extração do log operacional, foi identificado o seguinte cenário técnico:\n\n"
+    
+    # Deteccão automática de correlações
+    falha_retificador = any("Retificador" in str(al[1]) for al in dados_alarmes)
+    falha_rede = any("Rede" in str(al[1]) for al in dados_alarmes)
+    falha_disjuntor = any("Disjuntor" in str(al[1]) for al in dados_alarmes)
+    
+    if falha_retificador or falha_rede:
+        texto_analise += "- Correlação de Eventos e MTBF: A telemetria apontou eventos atrelados a falha no estágio de retificação ou rede AC. Quando a falha no retificador ocorre, ele é incapacitado de realizar a conversão da energia alternada, forçando o barramento a interromper a tensão de flutuação e assumir o fornecimento de energia DC estritamente pelos elementos acumuladores. A repetição dessa anomalia impacta agressivamente o MTBF (Tempo Médio Entre Falhas) da operação de missão crítica do Data Center.\n\n"
+        
+    if falha_disjuntor:
+        texto_analise += "- Severidade Crítica (Proteções): Foi identificado um log de 'Disjuntor de Bateria Aberto'. Tal comportamento isola parte da redundância energética do barramento, deixando a carga exposta à queda total em caso de interrupção da rede elétrica (Utility).\n\n"
+        
+    if temps and max(temps) > 25.0:
+        texto_analise += f"- Desvio de Temperatura: Os sensores reportaram uma máxima de {max(temps):.1f}°C. De acordo com as diretrizes de projeto, operações acima de 25°C em tecnologias VRLA aceleram reações de corrosão interna, diminuindo exponencialmente a vida útil projetada e aumentando os riscos de degradação térmica.\n\n"
     else:
-        pdf.set_font("Arial", 'B', 9)
-        pdf.cell(45, 8, "Data/Hora", border=1, align='C')
-        pdf.cell(85, 8, "Evento", border=1, align='C')
-        pdf.cell(30, 8, "Severidade", border=1, align='C')
-        pdf.cell(30, 8, "Status", border=1, align='C')
+        texto_analise += "- Térmica Controlada: O perfil de temperatura manteve-se nos parâmetros aceitáveis (≤ 25°C), fator crucial para assegurar a autonomia e integridade físico-química dos blocos de baterias.\n\n"
+        
+    pdf.multi_cell(0, 6, txt=texto_analise)
+    pdf.ln(5)
+
+    # 6. Conclusão e Plano de Ação
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="6. PARECER TÉCNICO E PLANO DE AÇÃO", ln=True)
+    
+    # Inferência do status
+    parecer = "APTO"
+    if (temps and max(temps) > 25.0) or falha_retificador or falha_rede:
+        parecer = "APTO COM RESTRIÇÕES (Requer Manutenção Preditiva)"
+    if falha_disjuntor or any(al[2] == "Crítica" for al in dados_alarmes):
+        parecer = "INAPTO (Risco Iminente Operacional)"
+        
+    pdf.set_font("Arial", 'B', 11)
+    pdf.cell(0, 6, txt=f"Status da Infraestrutura Analisada: {parecer}", ln=True)
+    pdf.ln(2)
+    
+    pdf.set_font("Arial", size=10)
+    texto_plano = "Com base nas análises efetuadas, recomendo a execução do seguinte plano de ação corretiva:\n"
+    if falha_retificador:
+        texto_plano += " - Substituição ou reparo em bancada dos módulos retificadores que acusaram indisponibilidade.\n"
+    if falha_disjuntor:
+        texto_plano += " - Restabelecimento imediato e rearme físico dos disjuntores seccionadores de bateria.\n"
+    if temps and max(temps) > 25.0:
+        texto_plano += " - Inspeção no sistema de refrigeração de precisão (HVAC) da sala de acumuladores.\n"
+    texto_plano += " - Reaperto das conexões de potência (barramentos, cabos de descida) usando torquímetro, aliado a inspeção termográfica em regime de carga nominal.\n"
+    
+    pdf.multi_cell(0, 6, txt=texto_plano)
+    pdf.ln(10)
+
+    # 7. Anexos
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="ANEXO I - TABELA DO LOG DE ALARMES SNMP", ln=True)
+    if not dados_alarmes:
+        pdf.set_font("Arial", size=9)
+        pdf.cell(0, 6, txt="Nenhum evento registrado no período.", ln=True)
+    else:
+        pdf.set_font("Arial", 'B', 8)
+        pdf.cell(35, 6, "Data/Hora", border=1, align='C')
+        pdf.cell(85, 6, "Evento", border=1, align='C')
+        pdf.cell(30, 6, "Severidade", border=1, align='C')
+        pdf.cell(30, 6, "Status", border=1, align='C')
         pdf.ln()
         
         pdf.set_font("Arial", size=8)
         for alarme in dados_alarmes:
-            pdf.cell(45, 8, str(alarme[0]), border=1, align='C')
-            pdf.cell(85, 8, str(alarme[1])[:45], border=1, align='C') # Corta o texto se for muito longo
-            pdf.cell(30, 8, str(alarme[2]), border=1, align='C')
-            pdf.cell(30, 8, str(alarme[3]), border=1, align='C')
+            pdf.cell(35, 6, str(alarme[0]), border=1, align='C')
+            pdf.cell(85, 6, str(alarme[1])[:45], border=1, align='C')
+            pdf.cell(30, 6, str(alarme[2]), border=1, align='C')
+            pdf.cell(30, 6, str(alarme[3]), border=1, align='C')
             pdf.ln()
+            
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 6, txt="ANEXO II - DADOS BRUTOS DE TELEMETRIA", ln=True)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(38, 6, "Data/Hora", border=1, align='C')
+    pdf.cell(38, 6, "VCC (V)", border=1, align='C')
+    pdf.cell(38, 6, "Corrente Carga (A)", border=1, align='C')
+    pdf.cell(38, 6, "Temperatura (C)", border=1, align='C')
+    pdf.cell(38, 6, "Capacidade (%)", border=1, align='C')
+    pdf.ln()
+    
+    pdf.set_font("Arial", size=8)
+    # Imprime no máximo os primeiros 100 registros para evitar que o laudo fique com 50 páginas inúteis.
+    # O histórico completo o analista consulta na interface web ou exportando para CSV no Dashboard
+    for linha in dados[:100]:
+        pdf.cell(38, 6, str(linha[0]), border=1, align='C')
+        pdf.cell(38, 6, f"{linha[1]:.2f}", border=1, align='C')
+        pdf.cell(38, 6, f"{linha[2]:.2f}", border=1, align='C')
+        pdf.cell(38, 6, f"{linha[3]:.1f}", border=1, align='C')
+        pdf.cell(38, 6, f"{linha[4]:.1f}", border=1, align='C')
+        pdf.ln()
+        
+    if len(dados) > 100:
+        pdf.set_font("Arial", 'I', 8)
+        pdf.cell(0, 6, txt=f"... e mais {len(dados)-100} registros suprimidos. Para o arquivo integral, utilize a exportação em CSV.", ln=True)
 
-    file_path = "laudo_smartpack.pdf"
+    file_path = f"laudo_smartpack_{site_id}.pdf"
     pdf.output(file_path)
     
-    return FileResponse(file_path, media_type='application/pdf', filename="laudo_smartpack.pdf")
+    return FileResponse(file_path, media_type='application/pdf', filename=f"laudo_{site_id}.pdf")
+
+# --- DASHBOARD DE HISTÓRICO (LAUDO WEB) ---
+@app.get("/relatorio-web")
+async def dashboard_historico():
+    """Dashboard web para visualização interativa do histórico e laudo"""
+    return FileResponse("dashboard_laudo.html")
+
+@app.get("/api/historico")
+def get_historico(site_id: str = "s1", data_inicio: str = None, data_fim: str = None):
+    """Retorna os dados históricos em JSON para os gráficos do dashboard web"""
+    conn = sqlite3.connect('telemetria.db')
+    conn.row_factory = sqlite3.Row  # Permite acessar colunas pelo nome (como dicionário)
+    cursor = conn.cursor()
+    
+    # --- Query da Telemetria ---
+    query = "SELECT timestamp, tensao, corrente, temperatura, capacidade FROM historico WHERE site_id=?"
+    params = [site_id]
+    if data_inicio:
+        query += " AND timestamp >= ?"
+        params.append(data_inicio.replace("T", " "))
+    if data_fim:
+        query += " AND timestamp <= ?"
+        params.append(data_fim.replace("T", " "))
+    query += " ORDER BY timestamp ASC"
+        
+    cursor.execute(query, params)
+    telemetria = [dict(row) for row in cursor.fetchall()]
+    
+    # --- Query dos Alarmes ---
+    query_al = "SELECT timestamp, evento, severidade, status FROM alarmes_historico WHERE site_id=?"
+    params_al = [site_id]
+    if data_inicio:
+        query_al += " AND timestamp >= ?"
+        params_al.append(data_inicio.replace("T", " "))
+    if data_fim:
+        query_al += " AND timestamp <= ?"
+        params_al.append(data_fim.replace("T", " "))
+    query_al += " ORDER BY timestamp DESC"
+    
+    cursor.execute(query_al, params_al)
+    alarmes = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    return {
+        "telemetria": telemetria,
+        "alarmes": alarmes
+    }
 
 # --- DASHBOARD WEB (Nativo para PC/Notebook) ---
 @app.get("/")

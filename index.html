@@ -9,14 +9,14 @@
         /* Estrutura Grid Principal */
         .header { background-color: #1e1e1e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; }
         .container { display: flex; flex: 1; overflow: hidden; }
-        .main-panel { flex: 3; padding: 20px; overflow-y: auto; }
-        .sidebar { flex: 1; background-color: #1a1a1a; padding: 20px; border-left: 2px solid #333; display: flex; flex-direction: column; }
-        .footer { background-color: #1e1e1e; padding: 10px 20px; text-align: center; border-top: 2px solid #333; font-size: 12px; color: #888; }
+        .main-panel { flex: 3; padding: 15px; display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
+        .sidebar { flex: 1; background-color: #1a1a1a; padding: 20px; border-left: 2px solid #333; display: flex; flex-direction: column; overflow-y: auto; }
+        .footer { background-color: #1e1e1e; padding: 10px 20px; text-align: center; border-top: 2px solid #333; font-size: 12px; color: #bbb; }
 
         /* Componentes Visuais */
         h1 { margin: 0; color: #4CAF50; font-size: 22px; }
         h2 { margin-top: 0; color: #fff; font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 5px; }
-        .card { background-color: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .card { background-color: #2d2d2d; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; margin: 0; }
         
         /* Status LEDs */
         .led-container { display: flex; gap: 15px; align-items: center; }
@@ -42,64 +42,136 @@
             50% { background-color: #3b0000; }
         }
         .tela-critica { animation: flash-bg 1.5s infinite; }
+
+        /* Tema Claro */
+        body.light-mode { background-color: #f4f7f6; color: #2d3748; }
+        body.light-mode .header { background-color: #ffffff; border-bottom: 2px solid #e3e6f0; }
+        body.light-mode .sidebar { background-color: #f8f9fc; border-left: 2px solid #e3e6f0; }
+        body.light-mode .footer { background-color: #ffffff; border-top: 2px solid #e3e6f0; color: #858796; }
+        body.light-mode h2 { color: #2d3748; border-bottom: 1px solid #e3e6f0; }
+        body.light-mode .card { background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        body.light-mode .data-box { background-color: #f1f3f9; }
+        body.light-mode input { background-color: #ffffff !important; color: #2d3748 !important; border: 1px solid #cbd5e1 !important; color-scheme: light; }
+        body.light-mode #ultimo_alarme { background-color: #f1f3f9 !important; color: #2d3748; }
+        body.light-mode #container-bateria { background-color: #f1f3f9 !important; border-color: #cbd5e1 !important; }
+        body.light-mode #txt-header-bat { color: #2d3748 !important; }
+        .rectifier { background: #222; border: 1px solid #444; height: 50px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; transition: all 0.3s; }
+        body.light-mode .rectifier { background: #f8f9fc; border: 1px solid #cbd5e1; }
+        
+        /* Botões de Ação na Header */
+        .header-actions { display: flex; gap: 10px; }
+        .btn-header { background-color: #333; color: #fff; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 13px; }
+        .btn-header:hover { background-color: #444; }
+        body.light-mode .btn-header { background-color: #e3e6f0; color: #2d3748; border: 1px solid #cbd5e1; }
+        body.light-mode .btn-header:hover { background-color: #d1d3e2; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- CABEÇALHO -->
     <div class="header">
-        <h1>⚡ TESTER SMARTPACK</h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h1>⚡ TESTER NOC</h1>
+            <select id="site-selector" class="btn-header" onchange="trocarSite()" style="outline: none;"></select>
+        </div>
+        <div class="header-actions">
+            <button class="btn-header" id="btn-som" onclick="toggleSom()" title="Ativar Alerta Sonoro">🔇 Som</button>
+            <button class="btn-header" onclick="toggleTheme()" title="Alternar Modo Claro/Escuro">🌗 Tema</button>
+            <button class="btn-header" onclick="abrirEmNovaJanela()" title="Destacar para outra tela">🗗 Pop-out</button>
+            <button class="btn-header" onclick="toggleFullScreen()" title="Expandir para Tela Cheia">⛶ Tela Cheia</button>
+        </div>
         <div class="led-container">
             <span>Status Global:</span>
             <div id="led-ok" class="led green"></div>
             <div id="led-aviso" class="led"></div>
             <div id="led-critico" class="led"></div>
-            <span style="margin-left:15px; color:#aaa;">Rede: <span id="status_conexao">-</span></span>
+            <span style="margin-left:15px; color:#ccc;">Rede: <span id="status_conexao">-</span></span>
         </div>
     </div>
 
     <div class="container">
         <!-- PAINEL CENTRAL -->
         <div class="main-panel">
-            <div class="card">
+            <div class="card" style="flex: 0 0 auto;">
                 <h2>📡 Visão Geral da Bateria</h2>
                 <div class="grid-telemetria">
                     <div class="data-box">Tensão do Barramento <span id="tensao" class="valor">0.0 V</span></div>
                     <div class="data-box">Corrente da Bateria <span id="corrente" class="valor">0.0 A</span></div>
                     <div class="data-box">Temperatura <span id="temperatura" class="valor" style="color:#FF9800;">0.0 °C</span></div>
                     <div class="data-box">Capacidade Restante <span id="capacidade" class="valor" style="color:#4CAF50;">0 %</span></div>
+                    <div class="data-box" style="grid-column: span 2; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+                        ⏱️ Autonomia Preditiva <span id="autonomia" class="valor" style="color:#bbdefb; font-size: 24px;">Calculando...</span>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px; background-color: #222; border-radius: 6px; padding: 12px; border: 1px solid #444;" id="container-bateria">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: #ccc;" id="txt-header-bat">
+                        <span>Nível Físico do Banco (SoC)</span>
+                        <span id="txt-bateria" style="font-weight: bold; color: #4CAF50;">0%</span>
+                    </div>
+                    <div style="width: 100%; background: #111; border-radius: 10px; height: 16px; border: 1px inset #000; overflow: hidden;">
+                        <div id="barra-bateria" style="width: 0%; height: 100%; background: #4CAF50; transition: all 0.8s ease-out;"></div>
+                    </div>
                 </div>
             </div>
             
-            <div class="card" style="position: relative; height: 250px;">
-                <canvas id="graficoTensao"></canvas>
+            <div class="card" style="flex: 1; min-height: 100px;">
+                <div style="position: relative; flex-grow: 1; min-height: 0;">
+                    <canvas id="graficoTensao"></canvas>
+                </div>
             </div>
             
-            <div class="card" style="position: relative; height: 250px;">
-                <canvas id="graficoCorrenteTemp"></canvas>
+            <div class="card" style="flex: 1; min-height: 100px;">
+                <div style="position: relative; flex-grow: 1; min-height: 0;">
+                    <canvas id="graficoCorrenteTemp"></canvas>
+                </div>
             </div>
         </div>
 
         <!-- COLUNA LATERAL -->
         <div class="sidebar">
+            <!-- GÊMEO DIGITAL 3D -->
+            <div class="card" style="margin-top: 0; margin-bottom: 20px; flex: 0 0 auto;">
+                <h2>🖥️ Gêmeo Digital (Gabinete 3D)</h2>
+                <div style="perspective: 500px; padding: 10px 0;">
+                    <div style="background: #111; padding: 15px; border-radius: 8px; border: 2px solid #333; box-shadow: inset 0 0 20px #000, 0 10px 20px rgba(0,0,0,0.5); transform: rotateX(5deg);">
+                        <div style="display: flex; gap: 8px; justify-content: space-between;">
+                            <div class="rectifier">
+                                <div id="rect-1-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 1</div>
+                            </div>
+                            <div class="rectifier">
+                                <div id="rect-2-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 2</div>
+                            </div>
+                            <div class="rectifier">
+                                <div id="rect-3-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 3</div>
+                            </div>
+                            <div class="rectifier">
+                                <div id="rect-4-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 4</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <h2>🚨 Eventos Ativos</h2>
             <div style="flex: 1;">
                 <p>Status: <span id="status_painel" style="font-weight:bold;">-</span></p>
                 <p>Último Alarme:<br> <span id="ultimo_alarme" style="display:block; margin-top:5px; padding:10px; background-color:#333; border-radius:4px;">-</span></p>
                 <p>Severidade: <span id="severidade">-</span></p>
             </div>
-            <button class="btn-reset" onclick="alert('Funcionalidade de Reset em desenvolvimento...')">RESETAR ALARMES</button>
+            <button class="btn-reset" onclick="resetarBanco()">Zerar Histórico e Alarmes</button>
             
             <!-- SEÇÃO GERAR LAUDO -->
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #444;">
                 <h2 style="font-size: 16px;">📄 Gerar Laudo Técnico</h2>
-                <label style="font-size: 12px; color: #aaa;">A partir de:</label>
+                <label style="font-size: 12px; color: #ccc;">A partir de:</label>
                 <input type="datetime-local" id="filtro_inicio" style="width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px;">
                 
-                <label style="font-size: 12px; color: #aaa;">Até:</label>
+                <label style="font-size: 12px; color: #ccc;">Até:</label>
                 <input type="datetime-local" id="filtro_fim" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px;">
                 
-                <button class="btn-reset" style="background-color: #2196F3; margin-top: 0;" onclick="baixarLaudo()">BAIXAR LAUDO (PDF)</button>
+                <button class="btn-reset" style="background-color: #2196F3; margin-top: 0; margin-bottom: 10px;" onclick="baixarLaudo()">BAIXAR LAUDO (PDF)</button>
+                <button class="btn-reset" style="background-color: #9C27B0; margin-top: 0;" onclick="abrirLaudo()">ANALISAR HISTÓRICO (NOVA TELA)</button>
             </div>
         </div>
     </div>
@@ -110,6 +182,13 @@
     </div>
 
     <script>
+        let currentSite = "s1";
+
+        // --- Gerenciamento de Tema Sincronizado ---
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-mode');
+        }
+
         // --- Configuração Inicial do Gráfico Chart.js ---
         const ctx = document.getElementById('graficoTensao').getContext('2d');
         const graficoTensao = new Chart(ctx, {
@@ -130,8 +209,8 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { ticks: { color: '#ccc' }, grid: { color: '#444' } },
-                    y: { ticks: { color: '#ccc' }, grid: { color: '#444' } }
+                    x: { ticks: { color: '#e0e0e0' }, grid: { color: '#444' } },
+                    y: { ticks: { color: '#e0e0e0' }, grid: { color: '#444' } }
                 },
                 plugins: { legend: { labels: { color: '#fff' } } }
             }
@@ -170,7 +249,7 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { ticks: { color: '#ccc' }, grid: { color: '#444' } },
+                    x: { ticks: { color: '#e0e0e0' }, grid: { color: '#444' } },
                     y: { type: 'linear', position: 'left', ticks: { color: '#FFC107' }, grid: { color: '#444' } },
                     y1: { type: 'linear', position: 'right', ticks: { color: '#FF9800' }, grid: { drawOnChartArea: false } }
                 },
@@ -178,15 +257,137 @@
             }
         });
 
+        // --- Funções de Interface (Tema e Janela) ---
+        function updateChartColors(isLight) {
+            const gridColor = isLight ? '#e3e6f0' : '#444';
+            const textColor = isLight ? '#858796' : '#e0e0e0';
+            const legendColor = isLight ? '#2d3748' : '#fff';
+
+            // Aplica as cores de tema claro/escuro nativamente nos gráficos
+            graficoTensao.options.scales.x.ticks.color = textColor;
+            graficoTensao.options.scales.x.grid.color = gridColor;
+            graficoTensao.options.scales.y.ticks.color = textColor;
+            graficoTensao.options.scales.y.grid.color = gridColor;
+            graficoTensao.options.plugins.legend.labels.color = legendColor;
+            graficoTensao.update();
+
+            graficoCorrenteTemp.options.scales.x.ticks.color = textColor;
+            graficoCorrenteTemp.options.scales.x.grid.color = gridColor;
+            graficoCorrenteTemp.options.scales.y.ticks.color = textColor;
+            graficoCorrenteTemp.options.scales.y.grid.color = gridColor;
+            graficoCorrenteTemp.options.plugins.legend.labels.color = legendColor;
+            graficoCorrenteTemp.update();
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const isLight = document.body.classList.contains('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            updateChartColors(isLight);
+        }
+
+        function abrirEmNovaJanela() {
+            window.open(window.location.href, '_blank', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+
+        // Aplica as cores corretas no gráfico na inicialização
+        updateChartColors(document.body.classList.contains('light-mode'));
+
+        // --- Lógica de Alerta Sonoro ---
+        let somAtivo = false;
+        let audioContext = null;
+        
+        function toggleSom() {
+            somAtivo = !somAtivo;
+            document.getElementById('btn-som').innerText = somAtivo ? '🔊 Som' : '🔇 Som';
+            if (somAtivo && !audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        
+        function tocarAlarme() {
+            if (!somAtivo || !audioContext) return;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(800, audioContext.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(300, audioContext.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.08, audioContext.currentTime);
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.3);
+        }
+
+        // --- Inicialização MultiSite ---
+        async function carregarSites() {
+            const res = await fetch('/api/sites');
+            const sites = await res.json();
+            const selector = document.getElementById('site-selector');
+            selector.innerHTML = '';
+            for (let id in sites) {
+                selector.innerHTML += `<option value="${id}">${sites[id].nome}</option>`;
+            }
+        }
+        
+        function trocarSite() {
+            currentSite = document.getElementById('site-selector').value;
+            // Limpa gráficos para evitar junção de linhas feias entre sites
+            graficoTensao.data.labels = []; graficoTensao.data.datasets[0].data = [];
+            graficoCorrenteTemp.data.labels = []; graficoCorrenteTemp.data.datasets[0].data = []; graficoCorrenteTemp.data.datasets[1].data = [];
+        }
+
+        async function resetarBanco() {
+            if (confirm("🚨 ATENÇÃO: Tem certeza que deseja APAGAR todo o histórico de telemetria e alarmes salvos de todos os sites? Essa ação não pode ser desfeita.")) {
+                try {
+                    const res = await fetch('/api/reset', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.status === 'sucesso') {
+                        alert("Banco de dados zerado com sucesso! Todos os relógios estão sincronizados com o fuso local agora.");
+                        atualizarDados(); // Força a atualização da tela
+                    } else {
+                        alert("Erro ao zerar o banco: " + data.mensagem);
+                    }
+                } catch (e) { alert("Erro de comunicação com o servidor."); }
+            }
+        }
+
         async function atualizarDados() {
             try {
-                const resTel = await fetch('/api/telemetria');
+                const resTel = await fetch('/api/telemetria?site_id=' + currentSite);
                 const tel = await resTel.json();
                 document.getElementById('status_conexao').innerText = tel.status_conexao;
                 document.getElementById('tensao').innerText = tel.tensao_barramento + ' V';
                 document.getElementById('corrente').innerText = tel.corrente_bateria + ' A';
                 if(tel.temperatura_bateria) document.getElementById('temperatura').innerText = tel.temperatura_bateria + ' °C';
                 if(tel.capacidade_bateria) document.getElementById('capacidade').innerText = tel.capacidade_bateria + ' %';
+
+                // --- Lógica Preditiva e Gráfico de Barras ---
+                if(tel.autonomia_estimada) document.getElementById('autonomia').innerText = tel.autonomia_estimada;
+                if(tel.capacidade_bateria !== undefined) {
+                    document.getElementById('txt-bateria').innerText = tel.capacidade_bateria + '%';
+                    const barra = document.getElementById('barra-bateria');
+                    barra.style.width = tel.capacidade_bateria + '%';
+                    
+                    if (tel.capacidade_bateria > 60) {
+                        barra.style.backgroundColor = '#4CAF50';
+                        document.getElementById('txt-bateria').style.color = '#4CAF50';
+                    } else if (tel.capacidade_bateria > 30) {
+                        barra.style.backgroundColor = '#FFC107';
+                        document.getElementById('txt-bateria').style.color = '#FFC107';
+                    } else {
+                        barra.style.backgroundColor = '#F44336';
+                        document.getElementById('txt-bateria').style.color = '#F44336';
+                    }
+                }
 
                 // --- Atualizar o Gráfico ---
                 if (tel.tensao_barramento < 48.0) {
@@ -218,7 +419,7 @@
                 }
                 graficoCorrenteTemp.update();
 
-                const resAl = await fetch('/api/alarmes');
+                const resAl = await fetch('/api/alarmes?site_id=' + currentSite);
                 const al = await resAl.json();
                 document.getElementById('status_painel').innerText = al.status_painel;
                 document.getElementById('ultimo_alarme').innerText = al.ultimo_alarme;
@@ -230,8 +431,18 @@
                 // --- Efeito Piscar Tela ---
                 if (al.severidade === 'Crítica') {
                     document.body.classList.add('tela-critica');
+                    if (Math.random() > 0.5) tocarAlarme(); // Toca bip pulsado enquanto estiver Crítico
                 } else {
                     document.body.classList.remove('tela-critica');
+                }
+                
+                // --- Animação do Gêmeo Digital ---
+                if (al.ultimo_alarme.includes('Retificador')) {
+                    document.getElementById('rect-3-led').className = 'led red';
+                    document.getElementById('rect-3-led').style.boxShadow = '0 0 10px red';
+                } else {
+                    document.getElementById('rect-3-led').className = 'led green';
+                    document.getElementById('rect-3-led').style.boxShadow = '0 0 10px #4CAF50';
                 }
 
                 // Atualiza LEDs do Cabeçalho
@@ -255,12 +466,17 @@
         function baixarLaudo() {
             const inicio = document.getElementById('filtro_inicio').value;
             const fim = document.getElementById('filtro_fim').value;
-            let url = '/api/relatorio?';
+            let url = `/api/relatorio?site_id=${currentSite}&`;
             if (inicio) url += `data_inicio=${inicio}&`;
             if (fim) url += `data_fim=${fim}&`;
             window.open(url, '_blank');
         }
         
+        function abrirLaudo() {
+            window.open(`/relatorio-web?site=${currentSite}`, '_blank');
+        }
+
+        carregarSites();
         setInterval(atualizarDados, 1000); // Atualiza a cada 1 segundo
         atualizarDados();
     </script>
