@@ -4,19 +4,21 @@
     <meta charset="UTF-8">
     <title>TESTER SMARTPACK</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         /* Estrutura Grid Principal */
-        .header { background-color: #1e1e1e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; }
-        .container { display: flex; flex: 1; overflow: hidden; }
-        .main-panel { flex: 3; padding: 15px; display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
-        .sidebar { flex: 1; background-color: #1a1a1a; padding: 20px; border-left: 2px solid #333; display: flex; flex-direction: column; overflow-y: auto; }
-        .footer { background-color: #1e1e1e; padding: 10px 20px; text-align: center; border-top: 2px solid #333; font-size: 12px; color: #bbb; }
+        .header { background-color: #1e1e1e; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; flex-shrink: 0; }
+        .container { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+        .main-panel { flex: 3; padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; min-width: 0; }
+        .sidebar { flex: 1; min-width: 260px; max-width: 320px; background-color: #1a1a1a; padding: 15px; border-left: 2px solid #333; display: flex; flex-direction: column; overflow-y: auto; }
+        .footer { background-color: #1e1e1e; padding: 8px 20px; text-align: center; border-top: 2px solid #333; font-size: 12px; color: #bbb; flex-shrink: 0; }
 
         /* Componentes Visuais */
         h1 { margin: 0; color: #4CAF50; font-size: 22px; }
         h2 { margin-top: 0; color: #fff; font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 5px; }
-        .card { background-color: #2d2d2d; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; margin: 0; }
+        .card { background-color: #2d2d2d; padding: 12px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; margin: 0; }
+        .chart-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .chart-wrapper { position: relative; flex: 1; min-height: 0; width: 100%; }
         
         /* Status LEDs */
         .led-container { display: flex; gap: 15px; align-items: center; }
@@ -129,14 +131,14 @@
                 </div>
             </div>
             
-            <div class="card" style="flex: 1; min-height: 100px;">
-                <div style="position: relative; flex-grow: 1; min-height: 0;">
+            <div class="card chart-card">
+                <div class="chart-wrapper">
                     <canvas id="graficoTensao"></canvas>
                 </div>
             </div>
             
-            <div class="card" style="flex: 1; min-height: 100px;">
-                <div style="position: relative; flex-grow: 1; min-height: 0;">
+            <div class="card chart-card">
+                <div class="chart-wrapper">
                     <canvas id="graficoCorrenteTemp"></canvas>
                 </div>
             </div>
@@ -239,25 +241,45 @@
         const graficoTensao = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [], // Aqui entrarão as horas (ex: 14:05:00)
+                labels: [],
                 datasets: [{
                     label: 'Tensão do Barramento (V)',
-                    data: [], // Aqui entrarão os valores da tensão
+                    data: [],
                     borderColor: '#2196F3',
-                    backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                    backgroundColor: 'rgba(33, 150, 243, 0.15)',
                     borderWidth: 2,
                     fill: true,
-                    tension: 0.4 // Deixa a linha curvada/suave
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: { duration: 300 },
                 scales: {
-                    x: { ticks: { color: '#e0e0e0' }, grid: { color: '#444' } },
-                    y: { ticks: { color: '#e0e0e0' }, grid: { color: '#444' } }
+                    x: {
+                        ticks: {
+                            color: '#e0e0e0',
+                            maxTicksLimit: 8,
+                            maxRotation: 0,
+                            autoSkip: true,
+                            font: { size: 10 }
+                        },
+                        grid: { color: '#333' }
+                    },
+                    y: {
+                        ticks: { color: '#e0e0e0', font: { size: 10 } },
+                        grid: { color: '#444' },
+                        suggestedMin: undefined,
+                        suggestedMax: undefined,
+                        grace: '5%'
+                    }
                 },
-                plugins: { legend: { labels: { color: '#fff' } } }
+                plugins: {
+                    legend: { labels: { color: '#fff', font: { size: 11 } } }
+                }
             }
         });
 
@@ -271,34 +293,60 @@
                     {
                         label: 'Corrente (A)',
                         data: [],
-                        borderColor: '#FFC107', // Amarelo
-                        backgroundColor: 'rgba(255, 193, 7, 0.2)',
+                        borderColor: '#FFC107',
+                        backgroundColor: 'rgba(255, 193, 7, 0.15)',
                         borderWidth: 2,
                         fill: true,
                         tension: 0.4,
-                        yAxisID: 'y'
+                        yAxisID: 'y',
+                        pointRadius: 0,
+                        pointHoverRadius: 4
                     },
                     {
                         label: 'Temperatura (°C)',
                         data: [],
-                        borderColor: '#FF9800', // Laranja
-                        backgroundColor: 'rgba(255, 152, 0, 0.2)',
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         borderWidth: 2,
-                        fill: true,
+                        fill: false,
                         tension: 0.4,
-                        yAxisID: 'y1'
+                        yAxisID: 'y1',
+                        pointRadius: 0,
+                        pointHoverRadius: 4
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: { duration: 300 },
                 scales: {
-                    x: { ticks: { color: '#e0e0e0' }, grid: { color: '#444' } },
-                    y: { type: 'linear', position: 'left', ticks: { color: '#FFC107' }, grid: { color: '#444' } },
-                    y1: { type: 'linear', position: 'right', ticks: { color: '#FF9800' }, grid: { drawOnChartArea: false } }
+                    x: {
+                        ticks: {
+                            color: '#e0e0e0',
+                            maxTicksLimit: 8,
+                            maxRotation: 0,
+                            autoSkip: true,
+                            font: { size: 10 }
+                        },
+                        grid: { color: '#333' }
+                    },
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        ticks: { color: '#FFC107', font: { size: 10 } },
+                        grid: { color: '#444' },
+                        grace: '5%'
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        ticks: { color: '#FF9800', font: { size: 10 } },
+                        grid: { drawOnChartArea: false },
+                        grace: '5%'
+                    }
                 },
-                plugins: { legend: { labels: { color: '#fff' } } }
+                plugins: { legend: { labels: { color: '#fff', font: { size: 11 } } } }
             }
         });
 
@@ -616,6 +664,18 @@
         carregarSites();
         setInterval(atualizarDados, 1000); // Atualiza a cada 1 segundo
         atualizarDados();
+
+        // Força redimensionamento dos gráficos ao entrar/sair de tela cheia ou redimensionar janela
+        document.addEventListener('fullscreenchange', () => {
+            setTimeout(() => {
+                graficoTensao.resize();
+                graficoCorrenteTemp.resize();
+            }, 100);
+        });
+        window.addEventListener('resize', () => {
+            graficoTensao.resize();
+            graficoCorrenteTemp.resize();
+        });
     </script>
 </body>
 </html>

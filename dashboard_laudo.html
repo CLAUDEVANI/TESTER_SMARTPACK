@@ -82,10 +82,12 @@
         /* Filtros */
         .filters {
             display: flex;
-            gap: 15px;
-            padding: 20px 30px;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 12px 20px;
             background: linear-gradient(180deg, #171925 0%, var(--bg-color) 100%);
             align-items: flex-end;
+            flex-shrink: 0;
         }
 
         .filter-group { display: flex; flex-direction: column; gap: 5px; }
@@ -104,25 +106,29 @@
         /* Dashboard Grid */
         .dashboard-content {
             flex: 1;
-            padding: 0 30px 30px 30px;
-            overflow: hidden; /* Trava a rolagem da página inteira */
+            padding: 0 20px 15px 20px;
+            overflow: hidden;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto minmax(0, 1fr) minmax(0, 1.2fr); /* Divide o espaço proporcionalmente */
-            gap: 20px;
+            grid-template-rows: auto minmax(0, 1fr) minmax(0, 1.4fr);
+            gap: 15px;
+            min-height: 0;
         }
 
         .card {
             background-color: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 20px;
+            padding: 15px 20px;
             box-shadow: 0 8px 16px rgba(0,0,0,0.15);
             display: flex;
             flex-direction: column;
-            min-height: 0; /* Permite que os cartões encolham se a tela for pequena */
+            min-height: 0;
+            overflow: hidden;
         }
         .card.full-width { grid-column: span 2; }
+        .chart-card { min-height: 0; }
+        .chart-wrapper { position: relative; flex: 1; min-height: 0; width: 100%; }
         
         .card h2 {
             margin-top: 0;
@@ -258,14 +264,14 @@
         <!-- Gráficos -->
         <div class="card chart-card">
             <h2>Histórico de Tensão (V)</h2>
-            <div style="position: relative; flex-grow: 1; min-height: 0;">
+            <div class="chart-wrapper">
                 <canvas id="chartTensao"></canvas>
             </div>
         </div>
         
         <div class="card chart-card">
             <h2>Corrente (A) vs Temperatura (°C)</h2>
-            <div style="position: relative; flex-grow: 1; min-height: 0;">
+            <div class="chart-wrapper">
                 <canvas id="chartCorrTemp"></canvas>
             </div>
         </div>
@@ -327,24 +333,54 @@
             const isLight = document.body.classList.contains('light-mode');
             Chart.defaults.color = isLight ? '#858796' : '#b3b8cc';
             Chart.defaults.borderColor = isLight ? '#e3e6f0' : '#2a2e3f';
+
+            const xAxisConfig = {
+                ticks: {
+                    maxTicksLimit: 10,
+                    maxRotation: 0,
+                    autoSkip: true,
+                    font: { size: 10 }
+                },
+                grid: { color: isLight ? '#e3e6f0' : '#2a2e3f' }
+            };
+
             const ctxT = document.getElementById('chartTensao').getContext('2d');
             chartTensao = new Chart(ctxT, {
                 type: 'line',
-                data: { labels: [], datasets: [{ label: 'Tensão (V)', data: [], borderColor: '#2196F3', backgroundColor: 'rgba(33, 150, 243, 0.1)', fill: true, tension: 0.3 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                data: { labels: [], datasets: [{ label: 'Tensão (V)', data: [], borderColor: '#2196F3', backgroundColor: 'rgba(33, 150, 243, 0.12)', fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 400 },
+                    plugins: { legend: { display: true, labels: { font: { size: 11 } } } },
+                    scales: {
+                        x: xAxisConfig,
+                        y: { grace: '5%', ticks: { font: { size: 10 } } }
+                    }
+                }
             });
 
             const ctxCT = document.getElementById('chartCorrTemp').getContext('2d');
             chartCorrTemp = new Chart(ctxCT, {
                 type: 'line',
-                data: { 
-                    labels: [], 
+                data: {
+                    labels: [],
                     datasets: [
-                        { label: 'Corrente (A)', data: [], borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)', fill: true, tension: 0.3, yAxisID: 'y' },
-                        { label: 'Temperatura (°C)', data: [], borderColor: '#ffb142', tension: 0.3, yAxisID: 'y1' }
-                    ] 
+                        { label: 'Corrente (A)', data: [], borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)', fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y' },
+                        { label: 'Temperatura (°C)', data: [], borderColor: '#ffb142', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y1' }
+                    ]
                 },
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { type: 'linear', position: 'left' }, y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false } } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 400 },
+                    plugins: { legend: { labels: { font: { size: 11 } } } },
+                    scales: {
+                        x: xAxisConfig,
+                        y: { type: 'linear', position: 'left', grace: '5%', ticks: { color: '#4CAF50', font: { size: 10 } } },
+                        y1: { type: 'linear', position: 'right', grace: '5%', grid: { drawOnChartArea: false }, ticks: { color: '#ffb142', font: { size: 10 } } }
+                    }
+                }
             });
         }
 
@@ -617,6 +653,18 @@
 
             initCharts();
             toggleRealTime();
+
+            // Força redimensionamento dos gráficos ao entrar/sair de tela cheia ou redimensionar janela
+            document.addEventListener('fullscreenchange', () => {
+                setTimeout(() => {
+                    if (chartTensao) chartTensao.resize();
+                    if (chartCorrTemp) chartCorrTemp.resize();
+                }, 100);
+            });
+            window.addEventListener('resize', () => {
+                if (chartTensao) chartTensao.resize();
+                if (chartCorrTemp) chartCorrTemp.resize();
+            });
         };
     </script>
 </body>

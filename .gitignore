@@ -11,3 +11,7 @@ __pycache__/
 
 # Variáveis de ambiente (boa prática futura)
 .env
+*.pdf
+*.db
+venv/
+__pycache__/

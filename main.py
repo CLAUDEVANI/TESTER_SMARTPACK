@@ -473,6 +473,8 @@ def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: 
         return {"erro": "A biblioteca FPDF não está instalada. Rode: pip install fpdf"}
 
     try:
+        import matplotlib
+        matplotlib.use('Agg')  # Backend sem display — obrigatório em servidor headless
         import matplotlib.pyplot as plt
         has_matplotlib = True
     except ImportError:
