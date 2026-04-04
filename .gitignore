@@ -1,0 +1,13 @@
+# Ambientes Virtuais
+venv/
+
+# Arquivos de Banco de Dados e PDFs gerados localmente
+telemetria.db
+laudo_smartpack.pdf
+
+# Cache do Python
+__pycache__/
+*.pyc
+
+# Variáveis de ambiente (boa prática futura)
+.env

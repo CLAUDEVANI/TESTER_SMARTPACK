@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>TESTER SMARTPACK</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* Estrutura Grid Principal */
+        .header { background-color: #1e1e1e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; }
+        .container { display: flex; flex: 1; overflow: hidden; }
+        .main-panel { flex: 3; padding: 20px; overflow-y: auto; }
+        .sidebar { flex: 1; background-color: #1a1a1a; padding: 20px; border-left: 2px solid #333; display: flex; flex-direction: column; }
+        .footer { background-color: #1e1e1e; padding: 10px 20px; text-align: center; border-top: 2px solid #333; font-size: 12px; color: #888; }
+
+        /* Componentes Visuais */
+        h1 { margin: 0; color: #4CAF50; font-size: 22px; }
+        h2 { margin-top: 0; color: #fff; font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        .card { background-color: #2d2d2d; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        
+        /* Status LEDs */
+        .led-container { display: flex; gap: 15px; align-items: center; }
+        .led { width: 15px; height: 15px; border-radius: 50%; display: inline-block; background-color: #555; }
+        .led.green { background-color: #4CAF50; box-shadow: 0 0 10px #4CAF50; }
+        .led.yellow { background-color: #FFC107; box-shadow: 0 0 10px #FFC107; }
+        .led.red { background-color: #F44336; box-shadow: 0 0 10px #F44336; }
+        
+        /* Dados de Telemetria */
+        .grid-telemetria { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .data-box { background-color: #222; padding: 15px; border-radius: 6px; text-align: center; }
+        .valor { font-size: 28px; font-weight: bold; color: #2196F3; display: block; margin-top: 10px; }
+        
+        /* Alarmes */
+        .alarme-critico { color: #F44336; font-weight: bold; }
+        .alarme-normal { color: #4CAF50; }
+        .btn-reset { margin-top: 15px; background-color: #4CAF50; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
+        .btn-reset:hover { background-color: #45a049; }
+        
+        /* Efeito visual para Alarmes Críticos */
+        @keyframes flash-bg {
+            0%, 100% { background-color: #121212; }
+            50% { background-color: #3b0000; }
+        }
+        .tela-critica { animation: flash-bg 1.5s infinite; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- CABEÇALHO -->
+    <div class="header">
+        <h1>⚡ TESTER SMARTPACK</h1>
+        <div class="led-container">
+            <span>Status Global:</span>
+            <div id="led-ok" class="led green"></div>
+            <div id="led-aviso" class="led"></div>
+            <div id="led-critico" class="led"></div>
+            <span style="margin-left:15px; color:#aaa;">Rede: <span id="status_conexao">-</span></span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- PAINEL CENTRAL -->
+        <div class="main-panel">
+            <div class="card">
+                <h2>📡 Visão Geral da Bateria</h2>
+                <div class="grid-telemetria">
+                    <div class="data-box">Tensão do Barramento <span id="tensao" class="valor">0.0 V</span></div>
+                    <div class="data-box">Corrente da Bateria <span id="corrente" class="valor">0.0 A</span></div>
+                    <div class="data-box">Temperatura <span id="temperatura" class="valor" style="color:#FF9800;">0.0 °C</span></div>
+                    <div class="data-box">Capacidade Restante <span id="capacidade" class="valor" style="color:#4CAF50;">0 %</span></div>
+                </div>
+            </div>
+            
+            <div class="card" style="position: relative; height: 250px;">
+                <canvas id="graficoTensao"></canvas>
+            </div>
+            
+            <div class="card" style="position: relative; height: 250px;">
+                <canvas id="graficoCorrenteTemp"></canvas>
+            </div>
+        </div>
+
+        <!-- COLUNA LATERAL -->
+        <div class="sidebar">
+            <h2>🚨 Eventos Ativos</h2>
+            <div style="flex: 1;">
+                <p>Status: <span id="status_painel" style="font-weight:bold;">-</span></p>
+                <p>Último Alarme:<br> <span id="ultimo_alarme" style="display:block; margin-top:5px; padding:10px; background-color:#333; border-radius:4px;">-</span></p>
+                <p>Severidade: <span id="severidade">-</span></p>
+            </div>
+            <button class="btn-reset" onclick="alert('Funcionalidade de Reset em desenvolvimento...')">RESETAR ALARMES</button>
+            
+            <!-- SEÇÃO GERAR LAUDO -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #444;">
+                <h2 style="font-size: 16px;">📄 Gerar Laudo Técnico</h2>
+                <label style="font-size: 12px; color: #aaa;">A partir de:</label>
+                <input type="datetime-local" id="filtro_inicio" style="width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px;">
+                
+                <label style="font-size: 12px; color: #aaa;">Até:</label>
+                <input type="datetime-local" id="filtro_fim" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px;">
+                
+                <button class="btn-reset" style="background-color: #2196F3; margin-top: 0;" onclick="baixarLaudo()">BAIXAR LAUDO (PDF)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RODAPÉ -->
+    <div class="footer">
+        Atalhos: <a href="#" style="color:#2196F3; margin-right:15px;">Configurações de Rede (SNMP/IP)</a> | <a href="#" style="color:#2196F3;">Registro de Eventos (Logs)</a>
+    </div>
+
+    <script>
+        // --- Configuração Inicial do Gráfico Chart.js ---
+        const ctx = document.getElementById('graficoTensao').getContext('2d');
+        const graficoTensao = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Aqui entrarão as horas (ex: 14:05:00)
+                datasets: [{
+                    label: 'Tensão do Barramento (V)',
+                    data: [], // Aqui entrarão os valores da tensão
+                    borderColor: '#2196F3',
+                    backgroundColor: 'rgba(33, 150, 243, 0.2)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4 // Deixa a linha curvada/suave
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { ticks: { color: '#ccc' }, grid: { color: '#444' } },
+                    y: { ticks: { color: '#ccc' }, grid: { color: '#444' } }
+                },
+                plugins: { legend: { labels: { color: '#fff' } } }
+            }
+        });
+
+        // --- Configuração Inicial do Gráfico de Corrente e Temp ---
+        const ctxCT = document.getElementById('graficoCorrenteTemp').getContext('2d');
+        const graficoCorrenteTemp = new Chart(ctxCT, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Corrente (A)',
+                        data: [],
+                        borderColor: '#FFC107', // Amarelo
+                        backgroundColor: 'rgba(255, 193, 7, 0.2)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Temperatura (°C)',
+                        data: [],
+                        borderColor: '#FF9800', // Laranja
+                        backgroundColor: 'rgba(255, 152, 0, 0.2)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { ticks: { color: '#ccc' }, grid: { color: '#444' } },
+                    y: { type: 'linear', position: 'left', ticks: { color: '#FFC107' }, grid: { color: '#444' } },
+                    y1: { type: 'linear', position: 'right', ticks: { color: '#FF9800' }, grid: { drawOnChartArea: false } }
+                },
+                plugins: { legend: { labels: { color: '#fff' } } }
+            }
+        });
+
+        async function atualizarDados() {
+            try {
+                const resTel = await fetch('/api/telemetria');
+                const tel = await resTel.json();
+                document.getElementById('status_conexao').innerText = tel.status_conexao;
+                document.getElementById('tensao').innerText = tel.tensao_barramento + ' V';
+                document.getElementById('corrente').innerText = tel.corrente_bateria + ' A';
+                if(tel.temperatura_bateria) document.getElementById('temperatura').innerText = tel.temperatura_bateria + ' °C';
+                if(tel.capacidade_bateria) document.getElementById('capacidade').innerText = tel.capacidade_bateria + ' %';
+
+                // --- Atualizar o Gráfico ---
+                if (tel.tensao_barramento < 48.0) {
+                    graficoTensao.data.datasets[0].borderColor = '#F44336';
+                    graficoTensao.data.datasets[0].backgroundColor = 'rgba(244, 67, 54, 0.2)';
+                } else {
+                    graficoTensao.data.datasets[0].borderColor = '#2196F3';
+                    graficoTensao.data.datasets[0].backgroundColor = 'rgba(33, 150, 243, 0.2)';
+                }
+                
+                const agora = new Date().toLocaleTimeString();
+                graficoTensao.data.labels.push(agora);
+                graficoTensao.data.datasets[0].data.push(tel.tensao_barramento);
+                if (graficoTensao.data.labels.length > 30) {
+                    // Mantém apenas os últimos 30 pontos na tela para o gráfico não ficar infinito
+                    graficoTensao.data.labels.shift();
+                    graficoTensao.data.datasets[0].data.shift();
+                }
+                graficoTensao.update();
+
+                // --- Atualizar o Gráfico de Corrente/Temp ---
+                graficoCorrenteTemp.data.labels.push(agora);
+                graficoCorrenteTemp.data.datasets[0].data.push(tel.corrente_bateria);
+                graficoCorrenteTemp.data.datasets[1].data.push(tel.temperatura_bateria);
+                if (graficoCorrenteTemp.data.labels.length > 30) {
+                    graficoCorrenteTemp.data.labels.shift();
+                    graficoCorrenteTemp.data.datasets[0].data.shift();
+                    graficoCorrenteTemp.data.datasets[1].data.shift();
+                }
+                graficoCorrenteTemp.update();
+
+                const resAl = await fetch('/api/alarmes');
+                const al = await resAl.json();
+                document.getElementById('status_painel').innerText = al.status_painel;
+                document.getElementById('ultimo_alarme').innerText = al.ultimo_alarme;
+                
+                const sev = document.getElementById('severidade');
+                sev.innerText = al.severidade;
+                sev.className = (al.severidade === 'Crítica' || al.severidade === 'Alta') ? 'alarme-critico' : 'alarme-normal';
+
+                // --- Efeito Piscar Tela ---
+                if (al.severidade === 'Crítica') {
+                    document.body.classList.add('tela-critica');
+                } else {
+                    document.body.classList.remove('tela-critica');
+                }
+
+                // Atualiza LEDs do Cabeçalho
+                document.getElementById('led-ok').className = 'led';
+                document.getElementById('led-aviso').className = 'led';
+                document.getElementById('led-critico').className = 'led';
+
+                if (al.status_painel === 'Normal') {
+                    document.getElementById('led-ok').className = 'led green';
+                } else if (al.severidade === 'Crítica' || al.severidade === 'Alta') {
+                    document.getElementById('led-critico').className = 'led red';
+                } else {
+                    document.getElementById('led-aviso').className = 'led yellow';
+                }
+            } catch (e) {
+                console.error("Erro ao buscar dados", e);
+            }
+        }
+        
+        // --- Função para Baixar Laudo com Filtros ---
+        function baixarLaudo() {
+            const inicio = document.getElementById('filtro_inicio').value;
+            const fim = document.getElementById('filtro_fim').value;
+            let url = '/api/relatorio?';
+            if (inicio) url += `data_inicio=${inicio}&`;
+            if (fim) url += `data_fim=${fim}&`;
+            window.open(url, '_blank');
+        }
+        
+        setInterval(atualizarDados, 1000); // Atualiza a cada 1 segundo
+        atualizarDados();
+    </script>
+</body>
+</html>
