@@ -5,32 +5,33 @@ import os
 from datetime import datetime
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, FileResponse
+from pydantic import BaseModel
 from pysnmp.hlapi.asyncio import *
 
 app = FastAPI(title="Tester_Smartpack", description="API de Integração com Eltek Smartpack S")
 
 # --- DICIONÁRIO MULTISITE ---
-SITES = {
-    "s1": {"nome": "Data Center Alpha (Matriz)", "ip": "192.168.10.20"},
-    "s2": {"nome": "Site Beta (Filial)", "ip": "192.168.10.21"}
-}
-
+SITES = {}
 telemetria_atual = {}
 alarmes_ativos = {}
-for sid in SITES:
-    telemetria_atual[sid] = {
-        "tensao_barramento": 0.0,
-        "corrente_bateria": 0.0,
-        "temperatura_bateria": 0.0,
-        "capacidade_bateria": 0.0,
-        "autonomia_estimada": "Calculando...",
-        "status_conexao": "Desconectado"
-    }
-    alarmes_ativos[sid] = {
-        "ultimo_alarme": "Nenhum evento registrado",
-        "status_painel": "Normal",
-        "severidade": "Baixa"
-    }
+
+def carregar_sites_do_banco():
+    global SITES, telemetria_atual, alarmes_ativos
+    conn = sqlite3.connect('telemetria.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT site_id, nome, ip FROM sites")
+    rows = cursor.fetchall()
+    
+    SITES.clear()
+    for r in rows:
+        sid, nome, ip = r
+        SITES[sid] = {"nome": nome, "ip": ip}
+        if sid not in telemetria_atual:
+            telemetria_atual[sid] = {"tensao_barramento": 0.0, "corrente_bateria": 0.0, "temperatura_bateria": 0.0, "capacidade_bateria": 0.0, "autonomia_estimada": "Calculando...", "status_conexao": "Desconectado"}
+        if sid not in alarmes_ativos:
+            alarmes_ativos[sid] = {"ultimo_alarme": "Nenhum evento registrado", "status_painel": "Normal", "severidade": "Baixa"}
+    
+    conn.close()
 
 # --- CONFIGURAÇÃO DE AMBIENTE ---
 SIMULAR_MODULO = True  # Mude para False quando for conectar no painel real
@@ -51,9 +52,10 @@ async def ler_dados_snmp():
     if SIMULAR_MODULO:
         print("📡 Modo SIMULADOR SNMP GET ativado!")
         while True:
-            for site_id in SITES:
-                tel = telemetria_atual[site_id]
-                alm = alarmes_ativos[site_id]
+            for site_id in list(SITES.keys()):
+                tel = telemetria_atual.get(site_id)
+                alm = alarmes_ativos.get(site_id)
+                if not tel or not alm: continue
                 tel["status_conexao"] = "Simulador Online"
                 tel["corrente_bateria"] = round(random.uniform(10.0, 35.5), 2)
                 tel["temperatura_bateria"] = round(random.uniform(22.0, 26.5), 1)
@@ -79,9 +81,9 @@ async def ler_dados_snmp():
     snmp_engine = SnmpEngine()
     
     while True:
-        for site_id, config in SITES.items():
+        for site_id, config in list(SITES.items()):
             ip = config["ip"]
-            tel = telemetria_atual[site_id]
+            tel = telemetria_atual.get(site_id, {})
             try:
                 errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
                     snmp_engine,
@@ -187,12 +189,13 @@ async def simular_alarmes():
         ("Porta do Gabinete Aberta", "Baixa", "Atenção")
     ]
     
-    indices = {s: i for i, s in enumerate(SITES.keys())} # Inicia em pontos diferentes
+    indices = {}
     while True:
         await asyncio.sleep(4) 
         
-        for site_id in SITES:
-            idx = indices[site_id]
+        for site_id in list(SITES.keys()):
+            if site_id not in indices: indices[site_id] = 0
+            idx = indices.get(site_id, 0)
             evento = eventos[idx]
             
             alm = alarmes_ativos[site_id]
@@ -220,6 +223,15 @@ def init_db():
         )
     ''')
     
+    # Tabela de Configuração de Rede e Dispositivos
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sites (
+            site_id TEXT PRIMARY KEY,
+            nome TEXT,
+            ip TEXT
+        )
+    ''')
+    
     # Nova tabela para o Histórico de Alarmes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alarmes_historico (
@@ -240,8 +252,15 @@ def init_db():
         cursor.execute("ALTER TABLE alarmes_historico ADD COLUMN site_id TEXT DEFAULT 's1'")
     except sqlite3.OperationalError: pass
     
+    # Cadastra o site inicial padrão caso a tabela esteja vazia
+    cursor.execute("SELECT COUNT(*) FROM sites")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO sites (site_id, nome, ip) VALUES ('s1', 'Data Center Alpha (Matriz)', '192.168.10.20')")
+        cursor.execute("INSERT INTO sites (site_id, nome, ip) VALUES ('s2', 'Site Beta (Filial)', '192.168.10.21')")
+        
     conn.commit()
     conn.close()
+    carregar_sites_do_banco()
 
 async def salvar_historico_db():
     """Worker para salvar dados no banco a cada 60 segundos"""
@@ -252,7 +271,7 @@ async def salvar_historico_db():
             agora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             conn = sqlite3.connect('telemetria.db')
             cursor = conn.cursor()
-            for site_id, tel in telemetria_atual.items():
+            for site_id, tel in list(telemetria_atual.items()):
                 cursor.execute('''
                     INSERT INTO historico (site_id, timestamp, tensao, corrente, temperatura, capacidade)
                     VALUES (?, ?, ?, ?, ?, ?)
@@ -295,14 +314,41 @@ async def iniciar_background_tasks():
 async def get_sites():
     return SITES
 
+class SiteConfig(BaseModel):
+    site_id: str
+    nome: str
+    ip: str
+
+@app.post("/api/sites")
+async def salvar_site(site: SiteConfig):
+    conn = sqlite3.connect('telemetria.db')
+    cursor = conn.cursor()
+    cursor.execute("REPLACE INTO sites (site_id, nome, ip) VALUES (?, ?, ?)", (site.site_id, site.nome, site.ip))
+    conn.commit()
+    conn.close()
+    carregar_sites_do_banco()
+    return {"status": "sucesso"}
+
+@app.delete("/api/sites/{site_id}")
+async def deletar_site(site_id: str):
+    if site_id == "s1":
+        return {"status": "erro", "mensagem": "Não é possível excluir o site matriz (s1)."}
+    conn = sqlite3.connect('telemetria.db')
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM sites WHERE site_id=?", (site_id,))
+    conn.commit()
+    conn.close()
+    carregar_sites_do_banco()
+    return {"status": "sucesso"}
+
 @app.get("/api/telemetria")
 async def get_telemetria(site_id: str = "s1"):
-    return telemetria_atual.get(site_id, telemetria_atual["s1"])
+    return telemetria_atual.get(site_id, telemetria_atual.get("s1", {"status_conexao": "Desconectado"}))
 
 # --- NOVA ROTA PARA O APLICATIVO ---
 @app.get("/api/alarmes")
 async def get_alarmes(site_id: str = "s1"):
-    return alarmes_ativos.get(site_id, alarmes_ativos["s1"])
+    return alarmes_ativos.get(site_id, alarmes_ativos.get("s1", {"ultimo_alarme": "Nenhum", "severidade": "Baixa", "status_painel": "Normal"}))
 
 # --- ROTA PARA ZERAR O BANCO DE DADOS ---
 @app.post("/api/reset")

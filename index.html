@@ -64,6 +64,15 @@
         .btn-header:hover { background-color: #444; }
         body.light-mode .btn-header { background-color: #e3e6f0; color: #2d3748; border: 1px solid #cbd5e1; }
         body.light-mode .btn-header:hover { background-color: #d1d3e2; }
+        
+        /* Modal Configurações */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background-color: #2d2d2d; padding: 20px; border-radius: 8px; width: 600px; max-width: 90%; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        body.light-mode .modal-content { background-color: #ffffff; color: #2d3748; }
+        .modal-content input { padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; outline: none; }
+        .table-sites { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        .table-sites th, .table-sites td { padding: 10px; border-bottom: 1px solid #444; text-align: left; }
+        body.light-mode .table-sites th, body.light-mode .table-sites td { border-bottom: 1px solid #e3e6f0; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -72,7 +81,10 @@
     <div class="header">
         <div style="display: flex; align-items: center; gap: 15px;">
             <h1>⚡ TESTER NOC</h1>
-            <select id="site-selector" class="btn-header" onchange="trocarSite()" style="outline: none;"></select>
+            <div style="display: flex; gap: 5px;">
+                <select id="site-selector" class="btn-header" onchange="trocarSite()" style="outline: none;"></select>
+                <button class="btn-header" onclick="abrirModalConfig()" title="Gerenciar Data Centers">⚙️</button>
+            </div>
         </div>
         <div class="header-actions">
             <button class="btn-header" id="btn-som" onclick="toggleSom()" title="Ativar Alerta Sonoro">🔇 Som</button>
@@ -178,7 +190,29 @@
 
     <!-- RODAPÉ -->
     <div class="footer">
-        Atalhos: <a href="#" style="color:#2196F3; margin-right:15px;">Configurações de Rede (SNMP/IP)</a> | <a href="#" style="color:#2196F3;">Registro de Eventos (Logs)</a>
+        Atalhos: <a href="#" onclick="abrirModalConfig(); return false;" style="color:#2196F3; margin-right:15px;">Configurações de Rede (SNMP/IP)</a> | <a href="#" style="color:#2196F3;">Registro de Eventos (Logs)</a>
+    </div>
+
+    <!-- MODAL DE CONFIGURAÇÕES DE REDE -->
+    <div id="modal-config" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="margin-top:0;">⚙️ Configurações de Data Centers (MultiSite)</h2>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="cfg_id" placeholder="ID (ex: s3)" style="width: 70px;">
+                <input type="text" id="cfg_nome" placeholder="Nome do Data Center" style="flex: 1;">
+                <input type="text" id="cfg_ip" placeholder="IP (192.168.x.x)" style="width: 140px;">
+                <button class="btn-header" style="background-color: #4CAF50; border: none;" onclick="salvarSite()">➕ Adicionar</button>
+            </div>
+            
+            <table class="table-sites" id="tabela-sites">
+                <thead><tr><th>ID</th><th>Nome</th><th>Endereço IP</th><th>Ação</th></tr></thead>
+                <tbody><!-- Preenchido via JS --></tbody>
+            </table>
+            
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn-reset" style="width: auto; padding: 8px 20px; background-color: #555; margin-top:0;" onclick="fecharModalConfig()">FECHAR</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -343,6 +377,52 @@
             // Limpa gráficos para evitar junção de linhas feias entre sites
             graficoTensao.data.labels = []; graficoTensao.data.datasets[0].data = [];
             graficoCorrenteTemp.data.labels = []; graficoCorrenteTemp.data.datasets[0].data = []; graficoCorrenteTemp.data.datasets[1].data = [];
+        }
+
+        // --- Modal de Configurações de Rede ---
+        async function abrirModalConfig() {
+            document.getElementById('modal-config').style.display = 'flex';
+            await renderizarTabelaSites();
+        }
+
+        function fecharModalConfig() {
+            document.getElementById('modal-config').style.display = 'none';
+        }
+
+        async function renderizarTabelaSites() {
+            const res = await fetch('/api/sites');
+            const sites = await res.json();
+            const tbody = document.querySelector('#tabela-sites tbody');
+            tbody.innerHTML = '';
+            for (let id in sites) {
+                tbody.innerHTML += `<tr>
+                    <td>${id}</td><td>${sites[id].nome}</td><td>${sites[id].ip}</td>
+                    <td><button class="btn-header" style="background-color:#F44336; border:none; padding:4px 8px;" onclick="deletarSite('${id}')">🗑️</button></td>
+                </tr>`;
+            }
+        }
+
+        async function salvarSite() {
+            const id = document.getElementById('cfg_id').value.trim();
+            const nome = document.getElementById('cfg_nome').value.trim();
+            const ip = document.getElementById('cfg_ip').value.trim();
+            if(!id || !nome || !ip) return alert("Preencha todos os campos!");
+            
+            await fetch('/api/sites', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ site_id: id, nome: nome, ip: ip }) });
+            document.getElementById('cfg_id').value = ''; document.getElementById('cfg_nome').value = ''; document.getElementById('cfg_ip').value = '';
+            
+            await renderizarTabelaSites();
+            await carregarSites();
+        }
+
+        async function deletarSite(id) {
+            if(confirm(`Tem certeza que deseja excluir o site ${id}?`)) {
+                const res = await fetch(`/api/sites/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if(data.status === 'erro') alert(data.mensagem);
+                await renderizarTabelaSites();
+                await carregarSites();
+            }
         }
 
         async function resetarBanco() {
