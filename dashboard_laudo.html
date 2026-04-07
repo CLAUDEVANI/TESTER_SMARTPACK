@@ -546,14 +546,40 @@
             displayTablePage(currentPage + step);
         }
 
-        function baixarPDF() {
+        async function baixarPDF() {
             const inicio = document.getElementById('filtro_inicio').value;
             const fim = document.getElementById('filtro_fim').value;
             const site = document.getElementById('filtro_site').value || 's1';
-            window.open(`/api/relatorio?site_id=${site}&data_inicio=${inicio || ''}&data_fim=${fim || ''}`, '_blank');
+            const url = `/api/relatorio?site_id=${site}&data_inicio=${inicio || ''}&data_fim=${fim || ''}`;
+            
+            // Força download direto ao invés de abrir em nova aba (evita renderização inline)
+            try {
+                const res = await fetch(url);
+                if (!res.ok) { alert("Erro ao gerar o laudo no servidor."); return; }
+                const blob = await res.blob();
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `laudo_${site}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            } catch(e) {
+                alert("Erro ao baixar o laudo: " + e.message);
+            }
         }
 
-        function exportarCSV() {
+        async function exportarCSV() {
+            // Se ainda não há dados carregados, força o carregamento antes de exportar
+            if (currentAlarmes.length === 0 && rawAlarmes.length === 0) {
+                await carregarDadosDB();
+            }
+
+            if (currentAlarmes.length === 0) {
+                alert("Nenhum registro encontrado para exportar. Verifique os filtros aplicados.");
+                return;
+            }
+
             let csv = [];
             
             // Cabeçalho
@@ -574,7 +600,10 @@
             let link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = "historico_alarmes.csv";
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
         }
 
         function destacarAlarmes() {

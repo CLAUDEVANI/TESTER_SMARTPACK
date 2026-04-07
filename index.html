@@ -77,6 +77,35 @@
         body.light-mode .table-sites th, body.light-mode .table-sites td { border-bottom: 1px solid #e3e6f0; }
         .cfg-box { background-color: #1a1a1a; border: 1px solid #444; border-radius: 6px; padding: 10px 15px; margin-bottom: 20px; }
         body.light-mode .cfg-box { background-color: #f8f9fc; border: 1px solid #cbd5e1; }
+        /* Painel de Scan de Rede */
+        .scan-panel { display: none; margin-top: 15px; border-top: 1px solid #444; padding-top: 15px; }
+        body.light-mode .scan-panel { border-top-color: #e3e6f0; }
+        .scan-panel.visivel { display: block; }
+        .scan-resultado { max-height: 200px; overflow-y: auto; margin-top: 10px; }
+        .scan-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 10px; border-radius: 6px; margin-bottom: 6px;
+            background-color: #1a1a1a; border: 1px solid #444; font-size: 13px;
+            gap: 8px;
+        }
+        body.light-mode .scan-item { background-color: #f8f9fc; border-color: #e3e6f0; }
+        .scan-item.eltek { border-left: 3px solid #4CAF50; }
+        .scan-item.generico { border-left: 3px solid #555; }
+        .scan-item-info { flex: 1; min-width: 0; }
+        .scan-item-ip { font-weight: bold; color: #2196F3; }
+        .scan-item-desc { font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .scan-badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: #4CAF50; color: #fff; white-space: nowrap; }
+        .scan-badge.generico { background: #555; }
+        .scan-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #444; border-top-color: #2196F3; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .scan-status { font-size: 12px; color: #888; margin-top: 6px; min-height: 18px; }
+        .btn-scan { background-color: #2196F3; color: #fff; border: none; padding: 7px 14px; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 6px; }
+        .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-scan:hover:not(:disabled) { background-color: #1976D2; }
+        .scan-input-nome { padding: 5px 8px; border-radius: 4px; background: #222; color: #fff; border: 1px solid #555; font-size: 12px; width: 130px; outline: none; }
+        body.light-mode .scan-input-nome { background: #fff; color: #2d3748; border-color: #cbd5e1; }
+        .btn-adicionar-scan { background-color: #4CAF50; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+        .btn-adicionar-scan:hover { background-color: #45a049; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -208,6 +237,25 @@
                     <span id="label_sim_desc" style="font-size: 12px; color: #888;">Desmarque para iniciar a leitura dos painéis físicos na rede via SNMP.</span>
                 </div>
                 <input type="checkbox" id="toggle_simulador" onchange="salvarSimulador()" style="width: 20px; height: 20px; cursor: pointer; accent-color: #4CAF50;">
+            </div>
+
+            <!-- PAINEL DE SCAN DE REDE (aparece apenas no Modo Real) -->
+            <div id="painel-scan" class="scan-panel">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <strong style="font-size: 14px;">🔍 Varredura Automática de Rede</strong>
+                        <div style="font-size: 12px; color: #888; margin-top: 3px;">Localiza controladores Eltek/Smartpack respondendo SNMP na sua rede local.</div>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="scan_subnet" placeholder="Ex: 192.168.1.0/24 (auto)" title="Deixe em branco para detectar automaticamente"
+                            style="padding: 6px 10px; border-radius: 4px; background: #222; color: #fff; border: 1px solid #555; font-size: 12px; width: 190px; outline: none;">
+                        <button class="btn-scan" id="btn-iniciar-scan" onclick="iniciarScan()">
+                            🔎 Escanear Rede
+                        </button>
+                    </div>
+                </div>
+                <div class="scan-status" id="scan-status"></div>
+                <div class="scan-resultado" id="scan-resultado"></div>
             </div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
@@ -452,14 +500,115 @@
         function atualizarTextosSimulador(ativo) {
             const titulo = document.getElementById('label_sim_titulo');
             const desc = document.getElementById('label_sim_desc');
+            const painelScan = document.getElementById('painel-scan');
             if(ativo) {
                 titulo.innerText = "🎮 Modo Simulador Ativo";
                 titulo.style.color = "#4CAF50";
                 desc.innerText = "Desmarque para iniciar a leitura dos painéis físicos na rede via SNMP.";
+                painelScan.classList.remove('visivel');
             } else {
                 titulo.innerText = "📡 Modo Real (SNMP) Ativo";
                 titulo.style.color = "#2196F3";
                 desc.innerText = "Marque esta caixa caso queira voltar a utilizar dados fictícios gerados pelo servidor.";
+                painelScan.classList.add('visivel');
+            }
+        }
+
+        // --- Varredura de Rede ---
+        let scanEmAndamento = false;
+
+        async function iniciarScan() {
+            if (scanEmAndamento) return;
+            scanEmAndamento = true;
+
+            const btn = document.getElementById('btn-iniciar-scan');
+            const statusEl = document.getElementById('scan-status');
+            const resultadoEl = document.getElementById('scan-resultado');
+            const subnet = document.getElementById('scan_subnet').value.trim();
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="scan-spinner"></span> Varrendo...';
+            statusEl.innerHTML = '<span class="scan-spinner"></span> Enviando probes SNMP para a rede. Isso pode levar alguns segundos...';
+            resultadoEl.innerHTML = '';
+
+            try {
+                const url = '/api/scan' + (subnet ? `?subnet=${encodeURIComponent(subnet)}` : '');
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.erro) {
+                    statusEl.innerHTML = `❌ Erro: ${data.erro}`;
+                } else if (data.total_encontrados === 0) {
+                    statusEl.innerHTML = `✅ Varredura de <strong>${data.subnet_varrida}</strong> concluída. Nenhum dispositivo SNMP encontrado.`;
+                } else {
+                    statusEl.innerHTML = `✅ Varredura de <strong>${data.subnet_varrida}</strong> concluída — <strong>${data.total_encontrados}</strong> dispositivo(s) encontrado(s):`;
+                    renderizarResultadoScan(data.dispositivos);
+                }
+            } catch(e) {
+                statusEl.innerHTML = `❌ Erro de comunicação com o servidor: ${e.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔎 Escanear Rede';
+                scanEmAndamento = false;
+            }
+        }
+
+        function renderizarResultadoScan(dispositivos) {
+            const el = document.getElementById('scan-resultado');
+            el.innerHTML = '';
+            let counter = 1;
+            dispositivos.forEach(d => {
+                const classeItem = d.provavel_eltek ? 'eltek' : 'generico';
+                const badge = d.provavel_eltek
+                    ? '<span class="scan-badge">⚡ Eltek/Smartpack</span>'
+                    : '<span class="scan-badge generico">SNMP Genérico</span>';
+                const idSugerido = `s${Date.now() % 1000 + counter}`;
+                el.innerHTML += `
+                    <div class="scan-item ${classeItem}" id="scan-item-${d.ip.replace(/\./g,'-')}">
+                        <div class="scan-item-info">
+                            <div class="scan-item-ip">${d.ip} <span style="font-size:11px; color:#888; font-weight:normal;">(SNMP: ${d.comunidade})</span></div>
+                            <div class="scan-item-desc" title="${d.descricao}">${d.descricao}</div>
+                        </div>
+                        ${badge}
+                        <input class="scan-input-nome" type="text" placeholder="Nome do site..." id="nome-${d.ip.replace(/\./g,'-')}" value="${d.provavel_eltek ? 'Controlador Eltek ' + d.ip.split('.').pop() : ''}">
+                        <button class="btn-adicionar-scan" onclick="adicionarDoScan('${d.ip}', '${idSugerido}')">➕ Adicionar</button>
+                    </div>`;
+                counter++;
+            });
+        }
+
+        async function adicionarDoScan(ip, idSugerido) {
+            const nomeInput = document.getElementById(`nome-${ip.replace(/\./g,'-')}`);
+            const nome = nomeInput.value.trim();
+            if (!nome) { nomeInput.focus(); nomeInput.style.borderColor = '#F44336'; return; }
+            nomeInput.style.borderColor = '';
+
+            // Gera um ID único baseado no último octeto do IP
+            const ultimoOcteto = ip.split('.').pop();
+            const siteId = `s${ultimoOcteto}`;
+
+            try {
+                const res = await fetch('/api/sites', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ site_id: siteId, nome: nome, ip: ip })
+                });
+                const data = await res.json();
+                if (data.status === 'sucesso') {
+                    // Remove o item da lista de scan e mostra confirmação
+                    const item = document.getElementById(`scan-item-${ip.replace(/\./g,'-')}`);
+                    if (item) {
+                        item.style.opacity = '0.4';
+                        item.style.pointerEvents = 'none';
+                        item.innerHTML += `<span style="color:#4CAF50; font-size:12px; white-space:nowrap;">✔ Adicionado!</span>`;
+                    }
+                    await renderizarTabelaSites();
+                    await carregarSites();
+                } else {
+                    alert("Erro ao adicionar: " + (data.mensagem || "Erro desconhecido"));
+                }
+            } catch(e) {
+                alert("Erro de comunicação: " + e.message);
             }
         }
 

@@ -429,6 +429,87 @@ async def deletar_site(site_id: str):
     carregar_sites_do_banco()
     return {"status": "sucesso"}
 
+@app.get("/api/scan")
+async def escanear_rede(subnet: str = None):
+    """
+    Varre a subnet em busca de dispositivos que respondam SNMP na porta 161.
+    Se subnet não for informada, detecta automaticamente a rede local do servidor.
+    Retorna lista de IPs que responderam ao SNMP GET (probe com OID sysDescr).
+    """
+    import ipaddress
+    import socket
+    import asyncio
+
+    # --- Detecta a subnet local automaticamente se não for passada ---
+    if not subnet:
+        try:
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+            # Assume /24 (ex: 192.168.1.x)
+            partes = local_ip.rsplit('.', 1)
+            subnet = partes[0] + '.0/24'
+        except Exception:
+            subnet = "192.168.1.0/24"
+
+    try:
+        rede = ipaddress.IPv4Network(subnet, strict=False)
+    except ValueError:
+        return {"erro": f"Subnet inválida: {subnet}", "dispositivos": []}
+
+    encontrados = []
+    OID_SYSDESCR = '1.3.6.1.2.1.1.1.0'  # sysDescr — OID universal presente em qualquer dispositivo SNMP
+
+    # Comunidades SNMP mais comuns para tentar (Eltek usa "public" ou senha customizada)
+    comunidades = ["public", "private", "eltek", "smartpack"]
+
+    async def probe_ip(ip_str: str):
+        """Tenta um SNMP GET no IP. Retorna dict com resultado se responder."""
+        for comunidade in comunidades:
+            try:
+                errorIndication, errorStatus, errorIndex, varBinds = await getCmd(
+                    SnmpEngine(),
+                    CommunityData(comunidade, mpModel=1),
+                    UdpTransportTarget((ip_str, 161), timeout=0.8, retries=0),
+                    ContextData(),
+                    ObjectType(ObjectIdentity(OID_SYSDESCR))
+                )
+                if not errorIndication and not errorStatus:
+                    descricao = str(varBinds[0][1]) if varBinds else "Dispositivo SNMP"
+                    # Detecta se é um controlador Eltek/Smartpack pela descrição
+                    is_eltek = any(k in descricao.lower() for k in ["eltek", "smartpack", "rectifier", "delta"])
+                    return {
+                        "ip": ip_str,
+                        "descricao": descricao[:80],
+                        "comunidade": comunidade,
+                        "provavel_eltek": is_eltek
+                    }
+            except Exception:
+                pass
+        return None
+
+    # Limita o scan a /24 no máximo (255 hosts) para não travar o servidor
+    hosts = list(rede.hosts())
+    if len(hosts) > 255:
+        hosts = hosts[:255]
+
+    # Dispara todas as probes em paralelo com asyncio
+    tarefas = [probe_ip(str(ip)) for ip in hosts]
+    resultados = await asyncio.gather(*tarefas, return_exceptions=True)
+
+    for r in resultados:
+        if r and isinstance(r, dict):
+            encontrados.append(r)
+
+    # Ordena: prováveis Eltek primeiro, depois por IP
+    encontrados.sort(key=lambda x: (not x["provavel_eltek"], x["ip"]))
+
+    return {
+        "subnet_varrida": str(rede),
+        "total_encontrados": len(encontrados),
+        "dispositivos": encontrados
+    }
+
+
 @app.get("/api/telemetria")
 async def get_telemetria(site_id: str = "s1"):
     return telemetria_atual.get(site_id, telemetria_atual.get("s1", {"status_conexao": "Desconectado"}))
@@ -713,13 +794,19 @@ def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: 
     file_path = f"laudo_smartpack_{site_id}.pdf"
     pdf.output(file_path)
     
-    return FileResponse(file_path, media_type='application/pdf', filename=f"laudo_{site_id}.pdf")
+    return FileResponse(
+        file_path,
+        media_type='application/pdf',
+        filename=f"laudo_{site_id}.pdf",
+        headers={"Content-Disposition": f"attachment; filename=laudo_{site_id}.pdf"}
+    )
 
 # --- DASHBOARD DE HISTÓRICO (LAUDO WEB) ---
 @app.get("/relatorio-web")
 async def dashboard_historico():
     """Dashboard web para visualização interativa do histórico e laudo"""
-    return FileResponse("dashboard_laudo.html")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return FileResponse(os.path.join(base_dir, "dashboard_laudo.html"))
 
 @app.get("/api/historico")
 def get_historico(site_id: str = "s1", data_inicio: str = None, data_fim: str = None):
@@ -766,4 +853,5 @@ def get_historico(site_id: str = "s1", data_inicio: str = None, data_fim: str = 
 @app.get("/")
 async def painel_desktop():
     """Dashboard acessível pelo navegador no PC/Notebook"""
-    return FileResponse("index.html")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return FileResponse(os.path.join(base_dir, "index.html"))
