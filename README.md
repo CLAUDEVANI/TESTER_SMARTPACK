@@ -1,126 +1,201 @@
-# ⚡ Tester Smartpack NOC (Network Operations Center)
+[![Python Application CI](https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions/workflows/ci.yml/badge.svg)](https://github.com/SEU_USUARIO/SEU_REPOSITORIO/actions/workflows/ci.yml)
 
-Sistema de telemetria, gestão preditiva e monitoramento centralizado (MultiSite) para retificadores **Eltek Smartpack S** e infraestruturas de missão crítica (Data Centers).
+# NOC Telemetria Universal v2.0
 
-Este projeto foi desenvolvido utilizando tendências de UX/UI modernas para Centros de Controle (NOC), incluindo modo preditivo, gêmeos digitais e design responsivo, substituindo a necessidade de navegação física no hardware.
+Sistema de monitoramento de energia com suporte a múltiplos protocolos e fabricantes.
 
----
+## Protocolos suportados
 
-## 🏗️ Arquitetura do Sistema
-
-O sistema utiliza uma arquitetura **Client-Server Asíncrona**, garantindo alta performance mesmo ao monitorar múltiplos Data Centers simultaneamente.
-
-### 1. Backend (Python / FastAPI)
-* **Framework:** FastAPI (Alta performance, ASGI).
-* **Workers Assíncronos (`asyncio`):**
-  * **SNMP GET Worker:** Varre ativamente (Polling) a rede a cada 2 segundos, consultando os OIDs do Smartpack de múltiplos IPs.
-  * **SNMP Trap Receiver:** Servidor UDP rodando na porta `1162` aguardando interrupções proativas (Traps) enviadas pelos retificadores no instante em que uma falha ocorre.
-  * **DB Persistence Worker:** Salva um "snapshot" de telemetria no banco de dados a cada 60 segundos por Site.
-* **Gerador de Laudos:** Utiliza `fpdf` e `matplotlib` para injetar gráficos analíticos e cruzar dados de alarmes, gerando pareceres automatizados em PDF.
-
-### 2. Banco de Dados (SQLite3)
-Banco local (`telemetria.db`) auto-gerido com as seguintes tabelas principais:
-* `sites`: Armazena a relação de Data Centers (ID, Nome, IP).
-* `historico`: Tabela temporal contendo (Tensao, Corrente, Temperatura, Capacidade) vinculada a um Site ID.
-* `alarmes_historico`: Tabela de logs contendo eventos, severidade e status de reconhecimento.
-* `config`: Variáveis globais do sistema (ex: Status do Simulador).
-
-### 3. Frontend (HTML / JS / CSS Nativo)
-* **Zero Build-Tools:** Interface construída puramente em Javascript/CSS (Vanilla), sem necessidade de Node.js, Webpack ou React, facilitando a portabilidade.
-* **Bibliotecas Externas:** Apenas `Chart.js` via CDN para renderização flexível de gráficos.
-* **Comunicação:** Chamadas assíncronas (`fetch`) consumindo a API REST do Backend a cada 1 segundo.
+| Protocolo     | Driver              | Equipamentos                              |
+|---------------|---------------------|-------------------------------------------|
+| `snmp`        | SNMPDriver          | Eltek Smartpack S, Huawei ETP, ORION      |
+| `modbus_tcp`  | ModbusTCPDriver     | Qualquer BMS/inversor com Ethernet        |
+| `modbus_rtu`  | ModbusRTUDriver     | Moura MSL, baterias RS485 genéricas       |
+| `simulator`   | SimulatorDriver     | Desenvolvimento / testes sem hardware     |
 
 ---
 
-## ✨ Principais Funcionalidades (UX 2026)
+## Instalação
 
-1. **Gestão MultiSite Centralizada:** Capacidade de adicionar, editar e alternar dinamicamente entre diversos Data Centers no mesmo painel, sem perda de histórico.
-2. **Inteligência Preditiva (KPIs):** O algoritmo abandona o modelo puramente "Reativo" e analisa o SoC (State of Charge) vs Dreno de Corrente para prever com exatidão o tempo restante (autonomia) em horas caso haja falha comercial.
-3. **Gêmeo Digital 3D:** Interface renderiza os módulos retificadores. Se um módulo físico falha na infraestrutura, o respectivo slot pisca em vermelho na interface virtual.
-4. **Design Adaptativo para NOC:**
-   * Janelas "Pop-out" flutuantes para organização em múltiplos monitores.
-   * Modo Tela Cheia `(:fullscreen)` nativo que reestrutura os blocos de malha (Flexbox/Grid) para maximizar gráficos de telemetria.
-   * Alternância entre Temas (Dark Mode e Light Mode) com persistência local.
-5. **Avisos Sensoriais e Contextuais:** Quando um alarme "Crítico" acontece, toda a UI reage (Pulsos visuais, luzes virtuais e bipes embutidos no navegador via `AudioContext`).
-
----
-
-## 📂 Estrutura de Diretórios
-
-```text
-/home/t430/Tester_Smartpack/
-│
-├── main.py                 # Core do Backend (Rotas FastAPI e Lógica SNMP)
-├── telemetria.db           # Banco de Dados SQLite3 (Autogerado)
-│
-├── index.html              # Frontend: Painel Ao Vivo (Monitoramento/NOC)
-├── dashboard_laudo.html    # Frontend: Painel Analítico e Exportação de Histórico
-│
-├── start.sh                # Script de inicialização automatizada (Linux)
-├── venv/                   # Ambiente Virtual Python (Isolamento de libs)
-└── README.md               # Esta documentação
-```
-
----
-
-## 🔌 Configuração e Comunicação (SNMP)
-
-Para que o sistema consiga conversar com os dispositivos reais, verifique se a controladora Eltek Smartpack S está configurada da seguinte forma na aba de Rede:
-* **Versão SNMP:** v1 ou v2c
-* **Porta SNMP:** 161
-* **Comunidade (Community String):** Deve coincidir com a variável `SNMP_COMMUNITY` definida no topo do arquivo `main.py` (Padrão sugerido: `sua_senha_aqui`).
-* **Trap Destination:** O IP do servidor onde este dashboard está rodando (Porta 1162).
-
-### Modificando OIDs
-Os identificadores padrão utilizados no código são:
-* `Tensão`: .1.3.6.1.4.1.12148.10.2.4.1.1.0
-* `Corrente`: .1.3.6.1.4.1.12148.10.2.4.1.2.0
-* `Temperatura`: .1.3.6.1.4.1.12148.10.2.4.1.3.0
-* `Capacidade`: .1.3.6.1.4.1.12148.10.2.4.1.4.0
-
-*(Consulte a MIB da Eltek caso necessite auditar OIDs de geradores, climatização, etc.)*
-
----
-
-## 🚀 Como Executar o Projeto
-
-### 1. Pré-requisitos
-* Python 3.8+
-* Dependências pip: `fastapi`, `uvicorn`, `pysnmp`, `fpdf`, `matplotlib`
-
-Instale as dependências executando:
 ```bash
-pip install fastapi uvicorn pysnmp fpdf matplotlib
+# 1. Instalar dependências
+pip install -r requirements.txt
+
+# 2. Se estiver migrando do projeto anterior (preserva todos os dados)
+python migrate_db.py
+
+# 3. Iniciar o servidor
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 2. Inicialização via Script (Recomendado para Linux)
-Dê permissão de execução e rode o shell script:
-```bash
-chmod +x start.sh
-./start.sh
-```
-
-### 3. Inicialização Manual
-```bash
-source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-### 4. Acesso
-Abra o navegador no computador local ou em qualquer máquina da mesma rede e acesse:
-* **Painel Ao Vivo:** `http://localhost:8000` ou `http://<IP-DO-SERVIDOR>:8000`
-* **Laudo Web:** `http://localhost:8000/relatorio-web`
+Acesse: http://localhost:8000
 
 ---
 
-## 🎮 Modo Simulador
-O sistema foi desenhado com um "Modo Simulador" embutido para testes de UX, demonstrações para clientes ou cenários em que o hardware não está conectado. 
+## Estrutura do projeto
 
-Ele simula comportamentos em cadeia (Ex: Quando ocorre "Falha de Rede", a tensão cai organicamente, a bateria começa a descarregar e o sistema prevê a autonomia).
-
-**Para ativar/desativar:** No painel principal (`index.html`), clique na engrenagem **(⚙️ Configurações)** e interaja com o switch "Modo Simulador". O Backend alternará instantaneamente entre o simulador e o ping na rede física, sem precisão de reinicialização do serviço.
+```
+projeto/
+├── main.py                  # API FastAPI — core agnóstico de protocolo
+├── migrate_db.py            # Migração do banco existente
+├── requirements.txt
+├── telemetria.db            # Banco SQLite (criado automaticamente)
+├── index.html               # Dashboard principal (sem alterações)
+├── dashboard_laudo.html     # Dashboard de histórico (sem alterações)
+└── drivers/
+    ├── __init__.py          # Registry de drivers
+    ├── base.py              # Interface BaseDriver + Telemetria normalizada
+    ├── snmp.py              # Driver SNMP (Eltek, genérico)
+    ├── modbus_tcp.py        # Driver Modbus TCP
+    ├── modbus_rtu.py        # Driver Modbus RTU / RS485
+    └── simulator.py         # Driver simulador
+```
 
 ---
 
-## 📄 Relatórios em PDF
-A rota `/api/relatorio` contém uma lógica de "Parecer Técnico Inteligente". Ao gerar um laudo, o Python analisa a base de dados filtrada e determina autonomamente se o Data Center está `APTO`, `APTO COM RESTRIÇÕES` ou `INAPTO`, com base na temperatura das baterias (> 25ºC) e na ausência de retificadores, injetando gráficos de curva e textos dinâmicos no arquivo PDF final.
+## Configuração de sites (por protocolo)
+
+Cada site no banco tem os campos `protocolo` e `driver_config` (JSON).
+
+### Eltek Smartpack S (SNMP)
+```json
+{
+  "protocolo": "snmp",
+  "driver_config": {
+    "community": "public",
+    "port": 161,
+    "version": 1,
+    "oids": {
+      "tensao":      "1.3.6.1.4.1.12148.10.2.4.1.1.0",
+      "corrente":    "1.3.6.1.4.1.12148.10.2.4.1.2.0",
+      "temperatura": "1.3.6.1.4.1.12148.10.2.4.1.3.0",
+      "capacidade":  "1.3.6.1.4.1.12148.10.2.4.1.4.0"
+    },
+    "scale": {"tensao": 0.01, "corrente": 0.1, "temperatura": 1.0, "capacidade": 1.0},
+    "capacidade_banco_ah": 400.0
+  }
+}
+```
+
+### Bateria Modbus TCP
+```json
+{
+  "protocolo": "modbus_tcp",
+  "driver_config": {
+    "port": 502,
+    "unit_id": 1,
+    "registers": {
+      "tensao":      {"address": 0, "count": 1, "scale": 0.1, "type": "holding"},
+      "corrente":    {"address": 1, "count": 1, "scale": 0.1, "type": "holding"},
+      "temperatura": {"address": 2, "count": 1, "scale": 0.1, "type": "holding"},
+      "capacidade":  {"address": 3, "count": 1, "scale": 1.0, "type": "holding"}
+    }
+  }
+}
+```
+
+### Moura MSL via RS485 (Modbus RTU)
+```json
+{
+  "protocolo": "modbus_rtu",
+  "ip": "/dev/ttyUSB0",
+  "driver_config": {
+    "port": "/dev/ttyUSB0",
+    "baudrate": 9600,
+    "slave_id": 1,
+    "capacidade_banco_ah": 200.0,
+    "registers": {
+      "tensao":      {"address": 0, "count": 1, "scale": 0.01, "type": "holding"},
+      "corrente":    {"address": 1, "count": 1, "scale": 0.01, "type": "holding"},
+      "temperatura": {"address": 2, "count": 1, "scale": 0.1,  "type": "holding"},
+      "capacidade":  {"address": 3, "count": 1, "scale": 1.0,  "type": "holding"}
+    }
+  }
+}
+```
+
+> **Nota Moura:** Os endereços de registrador acima são genéricos.
+> Solicite o "Manual de Comunicação Modbus e Mapa de Registradores do BMS"
+> ao suporte de engenharia B2B da Moura (pode exigir NDA).
+
+---
+
+## Como adicionar um novo driver (ex: Huawei, Victron, SMA)
+
+1. Crie `drivers/meu_fabricante.py`:
+
+```python
+from .base import BaseDriver, Telemetria, register_driver
+
+@register_driver("meu_protocolo")   # nome que vai no campo 'protocolo' do site
+class MeuFabricanteDriver(BaseDriver):
+
+    async def connect(self) -> bool:
+        # abre conexão
+        return True
+
+    async def read_telemetry(self) -> Telemetria:
+        # lê dados e retorna Telemetria normalizada
+        return Telemetria(
+            tensao_barramento=48.0,
+            corrente_bateria=10.0,
+            temperatura_bateria=25.0,
+            capacidade_bateria=90.0,
+            status_conexao="Online"
+        )
+
+    async def disconnect(self):
+        pass
+```
+
+2. Importe em `drivers/__init__.py`:
+```python
+from .meu_fabricante import MeuFabricanteDriver
+```
+
+3. Configure um site com `"protocolo": "meu_protocolo"` — pronto!
+
+---
+
+## API endpoints
+
+| Método | Rota                              | Descrição                                    |
+|--------|-----------------------------------|----------------------------------------------|
+| GET    | `/api/sites`                      | Lista todos os sites                          |
+| POST   | `/api/sites`                      | Cria/atualiza site (com protocolo + config)   |
+| DELETE | `/api/sites/{site_id}`            | Remove site                                   |
+| GET    | `/api/telemetria?site_id=s1`      | Telemetria atual do site                      |
+| GET    | `/api/alarmes?site_id=s1`         | Alarme atual do site                          |
+| GET    | `/api/historico?site_id=s1`       | Histórico filtrado por data                   |
+| GET    | `/api/drivers`                    | Lista drivers disponíveis                     |
+| GET    | `/api/driver-profiles`            | Lista perfis de driver configuráveis          |
+| POST   | `/api/driver-profiles`            | Cria/atualiza perfil                          |
+| GET    | `/api/driver-profiles/{id}/apply/{site_id}` | Aplica perfil a um site         |
+| GET    | `/api/scan?subnet=192.168.1.0/24` | Scan SNMP na rede                             |
+| GET    | `/api/relatorio?site_id=s1`       | Gera laudo PDF                                |
+| POST   | `/api/reset`                      | Limpa histórico do banco                      |
+
+---
+
+## Hardware para Modbus RTU (RS485)
+
+Para conectar baterias via RS485 você precisa de um conversor:
+
+- **USB-RS485**: CH340G, CP2102, FT232 (~R$30 no Mercado Livre)
+  - Windows: aparece como `COM3`, `COM4`, etc.
+  - Linux: aparece como `/dev/ttyUSB0`, `/dev/ttyUSB1`, etc.
+- **Raspberry Pi**: use um HAT RS485 ou módulo MAX485
+
+**Pinagem RS485 padrão Moura (verificar no manual físico):**
+- Pino 1 do RJ45: RS485+ (A)
+- Pino 2 do RJ45: RS485− (B)
+- Pino 3 ou 5: GND
+
+---
+
+## Fases de implementação concluídas
+
+- [x] **Fase 1** — Refatoração: driver SNMP extraído, core agnóstico
+- [x] **Fase 2** — Modbus TCP: suporte a baterias com Ethernet
+- [x] **Fase 3** — Modbus RTU: suporte a RS485 serial (Moura e genéricas)
+- [x] **Fase 4** — Mapa de registradores configurável via UI (`/api/driver-profiles`)

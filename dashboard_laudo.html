@@ -5,34 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Análise de Laudo - Tester Smartpack</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0f111a;
-            --card-bg: #1e2130;
-            --primary: #4CAF50;
-            --secondary: #2196F3;
-            --accent: #9C27B0;
-            --text-main: #f0f0f0;
-            --text-muted: #b3b8cc;
-            --border-color: #2a2e3f;
+            --bg-main: #0B101E;
+            --bg-header: #131B2F;
+            --bg-card: #1A233A;
+            --bg-card-inner: #222D4B;
+            --border-color: #2A3655;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+            --accent-cyan: #00E5FF;
+            --accent-green: #00E676;
+            --accent-yellow: #FFEA00;
+            --accent-orange: #FF9100;
+            --accent-red: #FF1744;
+            --accent-purple: #B388FF;
         }
         
         /* Tema Claro */
         body.light-mode {
-            --bg-color: #f4f7f6;
-            --card-bg: #ffffff;
-            --text-main: #2d3748;
-            --text-muted: #858796;
-            --border-color: #e3e6f0;
+            --bg-main: #F1F5F9;
+            --bg-header: #FFFFFF;
+            --bg-card: #FFFFFF;
+            --bg-card-inner: #F1F5F9;
+            --border-color: #CBD5E1;
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            --accent-cyan: #0284C7;
+            --accent-green: #16A34A;
+            --accent-yellow: #D97706;
+            --accent-orange: #EA580C;
+            --accent-red: #DC2626;
+            --accent-purple: #7C3AED;
         }
-        body.light-mode .filters { background: linear-gradient(180deg, #eaecf4 0%, var(--bg-color) 100%); }
+        body.light-mode .filters { background: var(--bg-card); border-bottom: 1px solid var(--border-color); }
         body.light-mode .filter-group input, body.light-mode .filter-group select {
             color-scheme: light;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
             color: var(--text-main);
             margin: 0;
             padding: 0;
@@ -47,36 +61,38 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px 30px;
-            background-color: var(--card-bg);
+            padding: 12px 24px;
+            background-color: var(--bg-header);
             border-bottom: 1px solid var(--border-color);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             z-index: 10;
+            transition: background-color 0.3s;
         }
 
         .topbar h1 {
             margin: 0;
             font-size: 20px;
-            font-weight: 600;
-            color: var(--secondary);
+            font-weight: 700;
+            color: var(--accent-cyan);
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
         .btn {
-            background-color: var(--card-bg);
+            background-color: var(--bg-card-inner);
             color: var(--text-main);
             border: 1px solid var(--border-color);
             padding: 8px 16px;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
-            font-weight: 500;
+            font-weight: 600;
+            font-size: 13px;
             transition: all 0.2s;
         }
         .btn:hover { background-color: var(--border-color); }
-        .btn-primary { background-color: var(--secondary); border: none; color: #fff; }
-        .btn-primary:hover { background-color: #1976D2; }
+        .btn-primary { background-color: var(--accent-cyan); border: none; color: #000; }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* Filtros */
@@ -84,29 +100,32 @@
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
-            padding: 12px 20px;
-            background: linear-gradient(180deg, #171925 0%, var(--bg-color) 100%);
+            padding: 16px 24px;
+            background: var(--bg-card);
             align-items: flex-end;
             flex-shrink: 0;
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.3s;
         }
 
         .filter-group { display: flex; flex-direction: column; gap: 5px; }
-        .filter-group label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .filter-group label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
         .filter-group input, .filter-group select {
-            background-color: var(--card-bg);
+            background-color: var(--bg-card-inner);
             color: var(--text-main);
             border: 1px solid var(--border-color);
             padding: 10px;
-            border-radius: 6px;
+            border-radius: 8px;
             color-scheme: dark;
             outline: none;
+            font-family: 'Inter', sans-serif;
         }
-        .filter-group input:focus, .filter-group select:focus { border-color: var(--secondary); }
+        .filter-group input:focus, .filter-group select:focus { border-color: var(--accent-cyan); }
 
         /* Dashboard Grid */
         .dashboard-content {
             flex: 1;
-            padding: 0 20px 15px 20px;
+            padding: 16px 24px;
             overflow: hidden;
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -116,15 +135,16 @@
         }
 
         .card {
-            background-color: var(--card-bg);
+            background-color: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 15px 20px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
             min-height: 0;
             overflow: hidden;
+            transition: background-color 0.3s, border-color 0.3s;
         }
         .card.full-width { grid-column: span 2; }
         .chart-card { min-height: 0; }
@@ -132,10 +152,12 @@
         
         .card h2 {
             margin-top: 0;
-            font-size: 16px;
+            font-size: 15px;
             color: var(--text-main);
             margin-bottom: 15px;
-            font-weight: 500;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         /* Resumo Estatístico */
@@ -145,24 +167,24 @@
             gap: 15px;
         }
         .stat-box {
-            background-color: rgba(255,255,255,0.02);
-            border-radius: 8px;
-            padding: 15px;
+            background-color: var(--bg-card-inner);
+            border-radius: 10px;
+            padding: 16px;
             border: 1px solid var(--border-color);
             text-align: center;
         }
-        .stat-label { font-size: 12px; color: var(--text-muted); }
-        .stat-value { font-size: 24px; font-weight: bold; margin-top: 5px; color: var(--text-main); }
+        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+        .stat-value { font-size: 28px; font-weight: 700; margin-top: 8px; color: var(--text-main); font-family: 'Roboto Mono', monospace; }
 
         /* Tabela de Alarmes */
         .table-container { overflow-x: auto; overflow-y: auto; flex: 1; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        th { position: sticky; top: 0; background-color: var(--card-bg); color: var(--text-muted); font-weight: 600; }
-        .sev-Critica { color: #ff5252; font-weight: bold; }
-        .sev-Alta { color: #ffb142; font-weight: bold; }
-        .sev-Atencao { color: #feca57; }
-        .sev-Baixa { color: #34ace0; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { position: sticky; top: 0; background-color: var(--bg-card); color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
+        .sev-Critica { color: var(--accent-red); font-weight: 700; }
+        .sev-Alta { color: var(--accent-orange); font-weight: 600; }
+        .sev-Atencao { color: var(--accent-yellow); font-weight: 500; }
+        .sev-Baixa { color: var(--accent-cyan); }
 
         /* Scrollbar Customizada */
         ::-webkit-scrollbar {
@@ -170,11 +192,11 @@
             height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: var(--bg-color);
+            background: var(--bg-main);
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
+            background: var(--bg-card-inner);
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
@@ -201,8 +223,8 @@
             <button class="btn" onclick="window.location.href='/'">Voltar ao Monitoramento Ao Vivo</button>
             <button class="btn" onclick="abrirEmNovaJanela()" title="Destacar para outra tela">🗗 Pop-out</button>
             <button class="btn" onclick="toggleFullScreen()" title="Expandir para Tela Cheia">⛶ Tela Cheia</button>
-            <button class="btn btn-primary" style="background-color: var(--accent);" onclick="exportarCSV()">Exportar Alarmes (CSV)</button>
-            <button class="btn btn-primary" onclick="baixarPDF()">Baixar Laudo PDF</button>
+            <button class="btn btn-primary" style="background-color: var(--accent-purple); color: #fff;" onclick="exportarCSV()">📥 Exportar Alarmes</button>
+            <button class="btn btn-primary" onclick="baixarPDF()">📄 Baixar Laudo PDF</button>
         </div>
     </div>
 
@@ -231,10 +253,10 @@
             </select>
         </div>
         <div class="filter-group" style="flex-direction: row; align-items: center; gap: 8px; margin-bottom: 5px; margin-left: 10px;">
-            <input type="checkbox" id="toggle_realtime" onchange="toggleRealTime()" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--secondary);">
-            <label for="toggle_realtime" style="cursor: pointer; color: var(--secondary); margin: 0;">Tempo Real</label>
+            <input type="checkbox" id="toggle_realtime" onchange="toggleRealTime()" checked style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent-cyan);">
+            <label for="toggle_realtime" style="cursor: pointer; color: var(--accent-cyan); margin: 0;">Tempo Real</label>
         </div>
-        <button class="btn btn-primary" style="padding: 10px 20px; margin-left: auto;" onclick="aplicarFiltros()">Aplicar Filtros</button>
+        <button class="btn btn-primary" style="padding: 10px 20px; margin-left: auto; height: 40px;" onclick="aplicarFiltros()">Aplicar Filtros</button>
     </div>
 
     <div class="dashboard-content">
@@ -244,19 +266,19 @@
             <div class="summary-grid">
                 <div class="stat-box">
                     <div class="stat-label">Tensão Média</div>
-                    <div class="stat-value" id="res_tensao">-- V</div>
+                    <div class="stat-value" id="res_tensao" style="color: var(--accent-cyan);">-- V</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-label">Pico de Corrente</div>
-                    <div class="stat-value" id="res_corrente">-- A</div>
+                    <div class="stat-value" id="res_corrente" style="color: var(--accent-yellow);">-- A</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-label">Temp. Máxima</div>
-                    <div class="stat-value" id="res_temp" style="color: #ffb142;">-- °C</div>
+                    <div class="stat-value" id="res_temp" style="color: var(--accent-orange);">-- °C</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-label">Total de Eventos</div>
-                    <div class="stat-value" id="res_eventos" style="color: #ff5252;">--</div>
+                    <div class="stat-value" id="res_eventos" style="color: var(--accent-red);">--</div>
                 </div>
             </div>
         </div>
@@ -331,31 +353,32 @@
 
         function initCharts() {
             const isLight = document.body.classList.contains('light-mode');
-            Chart.defaults.color = isLight ? '#858796' : '#b3b8cc';
-            Chart.defaults.borderColor = isLight ? '#e3e6f0' : '#2a2e3f';
+            Chart.defaults.color = isLight ? '#64748B' : '#94A3B8';
+            Chart.defaults.borderColor = isLight ? '#CBD5E1' : '#2A3655';
+            Chart.defaults.font.family = 'Inter';
 
             const xAxisConfig = {
                 ticks: {
                     maxTicksLimit: 10,
                     maxRotation: 0,
                     autoSkip: true,
-                    font: { size: 10 }
+                    font: { size: 11 }
                 },
-                grid: { color: isLight ? '#e3e6f0' : '#2a2e3f' }
+                grid: { color: isLight ? '#CBD5E1' : '#2A3655' }
             };
 
             const ctxT = document.getElementById('chartTensao').getContext('2d');
             chartTensao = new Chart(ctxT, {
                 type: 'line',
-                data: { labels: [], datasets: [{ label: 'Tensão (V)', data: [], borderColor: '#2196F3', backgroundColor: 'rgba(33, 150, 243, 0.12)', fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 }] },
+                data: { labels: [], datasets: [{ label: 'Tensão (V)', data: [], borderColor: '#00E5FF', backgroundColor: 'rgba(0, 229, 255, 0.12)', fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 }] },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: { duration: 400 },
-                    plugins: { legend: { display: true, labels: { font: { size: 11 } } } },
+                    plugins: { legend: { display: true, labels: { font: { size: 12 } } } },
                     scales: {
                         x: xAxisConfig,
-                        y: { grace: '5%', ticks: { font: { size: 10 } } }
+                        y: { grace: '5%', ticks: { font: { size: 11 } } }
                     }
                 }
             });
@@ -366,19 +389,19 @@
                 data: {
                     labels: [],
                     datasets: [
-                        { label: 'Corrente (A)', data: [], borderColor: '#4CAF50', backgroundColor: 'rgba(76, 175, 80, 0.1)', fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y' },
-                        { label: 'Temperatura (°C)', data: [], borderColor: '#ffb142', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y1' }
+                        { label: 'Corrente (A)', data: [], borderColor: '#FFEA00', backgroundColor: 'rgba(255, 234, 0, 0.1)', fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y' },
+                        { label: 'Temperatura (°C)', data: [], borderColor: '#FF9100', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y1' }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: { duration: 400 },
-                    plugins: { legend: { labels: { font: { size: 11 } } } },
+                    plugins: { legend: { labels: { font: { size: 12 } } } },
                     scales: {
                         x: xAxisConfig,
-                        y: { type: 'linear', position: 'left', grace: '5%', ticks: { color: '#4CAF50', font: { size: 10 } } },
-                        y1: { type: 'linear', position: 'right', grace: '5%', grid: { drawOnChartArea: false }, ticks: { color: '#ffb142', font: { size: 10 } } }
+                        y: { type: 'linear', position: 'left', grace: '5%', ticks: { color: '#FFEA00', font: { size: 11 } } },
+                        y1: { type: 'linear', position: 'right', grace: '5%', grid: { drawOnChartArea: false }, ticks: { color: '#FF9100', font: { size: 11 } } }
                     }
                 }
             });
@@ -640,8 +663,8 @@
             localStorage.setItem('theme', isLight ? 'light' : 'dark'); // Salva preferência
             
             // Atualiza imediatamente as cores das fontes e das grades dos gráficos
-            Chart.defaults.color = isLight ? '#858796' : '#b3b8cc';
-            Chart.defaults.borderColor = isLight ? '#e3e6f0' : '#2a2e3f';
+            Chart.defaults.color = isLight ? '#64748B' : '#94A3B8';
+            Chart.defaults.borderColor = isLight ? '#CBD5E1' : '#2A3655';
             if (chartTensao) chartTensao.update();
             chartCorrTemp.update();
         }

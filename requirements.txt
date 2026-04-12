@@ -1,0 +1,26 @@
+# NOC Telemetria Universal — Dependências
+# Instale com: pip install -r requirements.txt
+
+# API e servidor
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.0.0
+
+# SNMP (Eltek, gateways ORION, dispositivos v1/v2c/v3)
+pysnmp>=6.1.0
+
+# Modbus TCP + RTU (Moura, baterias genéricas, inversores)
+pymodbus>=3.6.0
+pyserial>=3.5         # necessário para Modbus RTU (RS485)
+
+# Geração de PDF (laudos técnicos)
+fpdf>=1.7.2
+
+# Gráficos no PDF
+matplotlib>=3.8.0
+
+# Banco de dados (já incluso no Python padrão)
+# sqlite3
+
+# Opcional: ORM para projetos maiores
+# sqlalchemy>=2.0.0

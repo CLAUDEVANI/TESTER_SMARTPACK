@@ -2,110 +2,138 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>TESTER SMARTPACK</title>
+    <title>BMS CONTROLADORES BATERIAS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        :root {
+            --bg-main: #0B101E;
+            --bg-header: #131B2F;
+            --bg-sidebar: #101627;
+            --bg-card: #1A233A;
+            --bg-card-inner: #222D4B;
+            --border-color: #2A3655;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+            --accent-cyan: #00E5FF;
+            --accent-green: #00E676;
+            --accent-yellow: #FFEA00;
+            --accent-orange: #FF9100;
+            --accent-red: #FF1744;
+            --accent-purple: #B388FF;
+        }
+
+        body.light-mode {
+            --bg-main: #F1F5F9;
+            --bg-header: #FFFFFF;
+            --bg-sidebar: #F8FAFC;
+            --bg-card: #FFFFFF;
+            --bg-card-inner: #F1F5F9;
+            --border-color: #CBD5E1;
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            --accent-cyan: #0284C7;
+            --accent-green: #16A34A;
+            --accent-yellow: #D97706;
+            --accent-orange: #EA580C;
+            --accent-red: #DC2626;
+        }
+
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-main); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; transition: background-color 0.3s, color 0.3s; }
         
         /* Estrutura Grid Principal */
-        .header { background-color: #1e1e1e; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; flex-shrink: 0; }
+        .header { background-color: var(--bg-header); padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); flex-shrink: 0; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 10; transition: background-color 0.3s; }
         .container { display: flex; flex: 1; min-height: 0; overflow: hidden; }
-        .main-panel { flex: 3; padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; min-width: 0; }
-        .sidebar { flex: 1; min-width: 260px; max-width: 320px; background-color: #1a1a1a; padding: 15px; border-left: 2px solid #333; display: flex; flex-direction: column; overflow-y: auto; }
-        .footer { background-color: #1e1e1e; padding: 8px 20px; text-align: center; border-top: 2px solid #333; font-size: 12px; color: #bbb; flex-shrink: 0; }
+        .main-panel { flex: 3; padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; min-width: 0; }
+        .sidebar { flex: 1; min-width: 280px; max-width: 340px; background-color: var(--bg-sidebar); padding: 20px; border-left: 1px solid var(--border-color); display: flex; flex-direction: column; overflow-y: auto; transition: background-color 0.3s; }
+        .footer { background-color: var(--bg-header); padding: 10px 24px; text-align: center; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-muted); flex-shrink: 0; transition: background-color 0.3s; }
 
         /* Componentes Visuais */
-        h1 { margin: 0; color: #4CAF50; font-size: 22px; }
-        h2 { margin-top: 0; color: #fff; font-size: 18px; border-bottom: 1px solid #444; padding-bottom: 5px; }
-        .card { background-color: #2d2d2d; padding: 12px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; flex-direction: column; margin: 0; }
+        h1 { margin: 0; color: var(--accent-green); font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+        h2 { margin-top: 0; color: var(--text-main); font-size: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card { background-color: var(--bg-card); padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 8px 16px rgba(0,0,0,0.1); display: flex; flex-direction: column; margin: 0; transition: all 0.3s; }
         .chart-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
         .chart-wrapper { position: relative; flex: 1; min-height: 0; width: 100%; }
         
         /* Status LEDs */
         .led-container { display: flex; gap: 15px; align-items: center; }
-        .led { width: 15px; height: 15px; border-radius: 50%; display: inline-block; background-color: #555; }
-        .led.green { background-color: #4CAF50; box-shadow: 0 0 10px #4CAF50; }
-        .led.yellow { background-color: #FFC107; box-shadow: 0 0 10px #FFC107; }
-        .led.red { background-color: #F44336; box-shadow: 0 0 10px #F44336; }
+        .led { width: 12px; height: 12px; border-radius: 50%; display: inline-block; background-color: var(--bg-card-inner); border: 1px solid var(--border-color); }
+        .led.green { background-color: var(--accent-green); box-shadow: 0 0 12px var(--accent-green); border-color: transparent; }
+        .led.yellow { background-color: var(--accent-yellow); box-shadow: 0 0 12px var(--accent-yellow); border-color: transparent; }
+        .led.red { background-color: var(--accent-red); box-shadow: 0 0 12px var(--accent-red); border-color: transparent; }
         
         /* Dados de Telemetria */
         .grid-telemetria { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .data-box { background-color: #222; padding: 15px; border-radius: 6px; text-align: center; }
-        .valor { font-size: 28px; font-weight: bold; color: #2196F3; display: block; margin-top: 10px; }
+        .data-box { background-color: var(--bg-card-inner); padding: 16px; border-radius: 10px; border: 1px solid var(--border-color); text-align: center; transition: all 0.3s; }
+        .data-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .valor { font-family: 'Roboto Mono', monospace; font-size: 28px; font-weight: 700; display: block; margin-top: 8px; }
         
         /* Alarmes */
-        .alarme-critico { color: #F44336; font-weight: bold; }
-        .alarme-normal { color: #4CAF50; }
-        .btn-reset { margin-top: 15px; background-color: #4CAF50; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
-        .btn-reset:hover { background-color: #45a049; }
+        .alarme-critico { color: var(--accent-red); font-weight: bold; }
+        .alarme-normal { color: var(--accent-green); }
+        .btn-reset { margin-top: 15px; background-color: var(--bg-card-inner); color: var(--text-main); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: 600; font-size: 13px; transition: all 0.2s; }
+        .btn-reset:hover { background-color: var(--border-color); }
+        .btn-action { background-color: var(--accent-cyan); color: #000; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: 700; font-size: 13px; transition: all 0.2s; }
+        .btn-action:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-action.secondary { background-color: var(--accent-purple); color: #fff; }
         
         /* Efeito visual para Alarmes Críticos */
         @keyframes flash-bg {
-            0%, 100% { background-color: #121212; }
+            0%, 100% { background-color: var(--bg-main); }
             50% { background-color: #3b0000; }
         }
+        body.light-mode.tela-critica { animation: flash-bg-light 1.5s infinite; }
+        @keyframes flash-bg-light { 0%, 100% { background-color: var(--bg-main); } 50% { background-color: #ffe5e5; } }
         .tela-critica { animation: flash-bg 1.5s infinite; }
 
-        /* Tema Claro */
-        body.light-mode { background-color: #f4f7f6; color: #2d3748; }
-        body.light-mode .header { background-color: #ffffff; border-bottom: 2px solid #e3e6f0; }
-        body.light-mode .sidebar { background-color: #f8f9fc; border-left: 2px solid #e3e6f0; }
-        body.light-mode .footer { background-color: #ffffff; border-top: 2px solid #e3e6f0; color: #858796; }
-        body.light-mode h2 { color: #2d3748; border-bottom: 1px solid #e3e6f0; }
-        body.light-mode .card { background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        body.light-mode .data-box { background-color: #f1f3f9; }
-        body.light-mode input { background-color: #ffffff !important; color: #2d3748 !important; border: 1px solid #cbd5e1 !important; color-scheme: light; }
-        body.light-mode #ultimo_alarme { background-color: #f1f3f9 !important; color: #2d3748; }
-        body.light-mode #container-bateria { background-color: #f1f3f9 !important; border-color: #cbd5e1 !important; }
-        body.light-mode #txt-header-bat { color: #2d3748 !important; }
-        .rectifier { background: #222; border: 1px solid #444; height: 50px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; transition: all 0.3s; }
-        body.light-mode .rectifier { background: #f8f9fc; border: 1px solid #cbd5e1; }
+        /* Sobrescritas para Inputs e Gêmeo Digital no Light Mode */
+        input, select { background-color: var(--bg-card-inner); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; outline: none; }
+        body.light-mode input, body.light-mode select { color-scheme: light; }
+        #ultimo_alarme { display:block; margin-top:8px; padding:12px; background-color: var(--bg-card-inner); border: 1px solid var(--border-color); border-radius:8px; font-size: 13px; }
+        #container-bateria { margin-top: 15px; background-color: var(--bg-card-inner); border-radius: 10px; padding: 16px; border: 1px solid var(--border-color); transition: all 0.3s; }
+        #txt-header-bat { font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
+        
+        .rectifier { background: var(--bg-card-inner); border: 1px solid var(--border-color); height: 55px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; transition: all 0.3s; }
+        .rectifier-label { font-size: 10px; color: var(--text-muted); margin-top: 6px; font-weight: 600; }
         
         /* Botões de Ação na Header */
         .header-actions { display: flex; gap: 10px; }
-        .btn-header { background-color: #333; color: #fff; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 13px; }
-        .btn-header:hover { background-color: #444; }
-        body.light-mode .btn-header { background-color: #e3e6f0; color: #2d3748; border: 1px solid #cbd5e1; }
-        body.light-mode .btn-header:hover { background-color: #d1d3e2; }
+        .btn-header { background-color: var(--bg-card-inner); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: 6px; cursor: pointer; transition: 0.2s; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+        .btn-header:hover { background-color: var(--border-color); }
         
         /* Modal Configurações */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background-color: #2d2d2d; padding: 20px; border-radius: 8px; width: 600px; max-width: 90%; color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-        body.light-mode .modal-content { background-color: #ffffff; color: #2d3748; }
-        .modal-content input { padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; outline: none; }
+        .modal-content { background-color: var(--bg-card); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); width: 650px; max-width: 90%; color: var(--text-main); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .modal-content input { padding: 10px; }
         .table-sites { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
-        .table-sites th, .table-sites td { padding: 10px; border-bottom: 1px solid #444; text-align: left; }
-        body.light-mode .table-sites th, body.light-mode .table-sites td { border-bottom: 1px solid #e3e6f0; }
-        .cfg-box { background-color: #1a1a1a; border: 1px solid #444; border-radius: 6px; padding: 10px 15px; margin-bottom: 20px; }
-        body.light-mode .cfg-box { background-color: #f8f9fc; border: 1px solid #cbd5e1; }
+        .table-sites th { color: var(--text-muted); font-weight: 600; padding: 12px 10px; border-bottom: 1px solid var(--border-color); text-align: left; }
+        .table-sites td { padding: 12px 10px; border-bottom: 1px solid var(--border-color); text-align: left; }
+        .cfg-box { background-color: var(--bg-card-inner); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
         /* Painel de Scan de Rede */
-        .scan-panel { display: none; margin-top: 15px; border-top: 1px solid #444; padding-top: 15px; }
-        body.light-mode .scan-panel { border-top-color: #e3e6f0; }
+        .scan-panel { display: none; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px; }
         .scan-panel.visivel { display: block; }
         .scan-resultado { max-height: 200px; overflow-y: auto; margin-top: 10px; }
         .scan-item {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 8px 10px; border-radius: 6px; margin-bottom: 6px;
-            background-color: #1a1a1a; border: 1px solid #444; font-size: 13px;
-            gap: 8px;
+            padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+            background-color: var(--bg-card-inner); border: 1px solid var(--border-color); font-size: 13px;
+            gap: 10px;
         }
-        body.light-mode .scan-item { background-color: #f8f9fc; border-color: #e3e6f0; }
-        .scan-item.eltek { border-left: 3px solid #4CAF50; }
+        .scan-item.eltek { border-left: 4px solid var(--accent-green); }
         .scan-item.generico { border-left: 3px solid #555; }
         .scan-item-info { flex: 1; min-width: 0; }
-        .scan-item-ip { font-weight: bold; color: #2196F3; }
-        .scan-item-desc { font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .scan-badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; background: #4CAF50; color: #fff; white-space: nowrap; }
+        .scan-item-ip { font-weight: 600; color: var(--accent-cyan); font-family: 'Roboto Mono', monospace; }
+        .scan-item-desc { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+        .scan-badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; background: var(--accent-green); color: #000; font-weight: 600; white-space: nowrap; }
         .scan-badge.generico { background: #555; }
-        .scan-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #444; border-top-color: #2196F3; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+        .scan-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border-color); border-top-color: var(--accent-cyan); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .scan-status { font-size: 12px; color: #888; margin-top: 6px; min-height: 18px; }
-        .btn-scan { background-color: #2196F3; color: #fff; border: none; padding: 7px 14px; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 6px; }
+        .scan-status { font-size: 12px; color: var(--text-muted); margin-top: 8px; min-height: 18px; }
+        .btn-scan { background-color: var(--accent-cyan); color: #000; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: opacity 0.2s; }
         .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-scan:hover:not(:disabled) { background-color: #1976D2; }
-        .scan-input-nome { padding: 5px 8px; border-radius: 4px; background: #222; color: #fff; border: 1px solid #555; font-size: 12px; width: 130px; outline: none; }
-        body.light-mode .scan-input-nome { background: #fff; color: #2d3748; border-color: #cbd5e1; }
-        .btn-adicionar-scan { background-color: #4CAF50; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
-        .btn-adicionar-scan:hover { background-color: #45a049; }
+        .btn-scan:hover:not(:disabled) { opacity: 0.9; }
+        .scan-input-nome { padding: 6px 10px; border-radius: 6px; font-size: 12px; width: 140px; }
+        .btn-adicionar-scan { background-color: var(--accent-green); color: #000; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; transition: opacity 0.2s; }
+        .btn-adicionar-scan:hover { opacity: 0.9; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -113,7 +141,7 @@
     <!-- CABEÇALHO -->
     <div class="header">
         <div style="display: flex; align-items: center; gap: 15px;">
-            <h1>⚡ TESTER NOC</h1>
+            <h1>⚡ BMS CONTROLADORES BATERIAS</h1>
             <div style="display: flex; gap: 5px;">
                 <select id="site-selector" class="btn-header" onchange="trocarSite()" style="outline: none;"></select>
                 <button class="btn-header" onclick="abrirModalConfig()" title="Gerenciar Data Centers">⚙️</button>
@@ -127,7 +155,7 @@
         </div>
         <div class="led-container">
             <span>Status Global:</span>
-            <div id="led-ok" class="led green"></div>
+            <div id="led-ok" class="led"></div>
             <div id="led-aviso" class="led"></div>
             <div id="led-critico" class="led"></div>
             <span style="margin-left:15px; color:#ccc;">Rede: <span id="status_conexao">-</span></span>
@@ -140,22 +168,35 @@
             <div class="card" style="flex: 0 0 auto;">
                 <h2>📡 Visão Geral da Bateria</h2>
                 <div class="grid-telemetria">
-                    <div class="data-box">Tensão do Barramento <span id="tensao" class="valor">0.0 V</span></div>
-                    <div class="data-box">Corrente da Bateria <span id="corrente" class="valor">0.0 A</span></div>
-                    <div class="data-box">Temperatura <span id="temperatura" class="valor" style="color:#FF9800;">0.0 °C</span></div>
-                    <div class="data-box">Capacidade Restante <span id="capacidade" class="valor" style="color:#4CAF50;">0 %</span></div>
-                    <div class="data-box" style="grid-column: span 2; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
-                        ⏱️ Autonomia Preditiva <span id="autonomia" class="valor" style="color:#bbdefb; font-size: 24px;">Calculando...</span>
+                    <div class="data-box">
+                        <div class="data-label">Tensão do Barramento</div>
+                        <span id="tensao" class="valor" style="color: var(--accent-cyan);">0.0 V</span>
+                    </div>
+                    <div class="data-box">
+                        <div class="data-label">Corrente da Bateria</div>
+                        <span id="corrente" class="valor" style="color: var(--accent-yellow);">0.0 A</span>
+                    </div>
+                    <div class="data-box">
+                        <div class="data-label">Temperatura</div>
+                        <span id="temperatura" class="valor" style="color: var(--accent-orange);">0.0 °C</span>
+                    </div>
+                    <div class="data-box">
+                        <div class="data-label">Capacidade Restante</div>
+                        <span id="capacidade" class="valor" style="color: var(--accent-green);">0 %</span>
+                    </div>
+                    <div class="data-box" style="grid-column: span 2; background: linear-gradient(135deg, var(--bg-card-inner) 0%, rgba(0, 229, 255, 0.05) 100%);">
+                        <div class="data-label">⏱️ Autonomia Preditiva</div>
+                        <span id="autonomia" class="valor" style="color: var(--text-main); font-size: 24px;">Calculando...</span>
                     </div>
                 </div>
                 
-                <div style="margin-top: 15px; background-color: #222; border-radius: 6px; padding: 12px; border: 1px solid #444;" id="container-bateria">
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: #ccc;" id="txt-header-bat">
+                <div id="container-bateria">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;" id="txt-header-bat">
                         <span>Nível Físico do Banco (SoC)</span>
-                        <span id="txt-bateria" style="font-weight: bold; color: #4CAF50;">0%</span>
+                        <span id="txt-bateria" style="font-weight: bold; color: var(--accent-green); font-family: 'Roboto Mono', monospace;">0%</span>
                     </div>
-                    <div style="width: 100%; background: #111; border-radius: 10px; height: 16px; border: 1px inset #000; overflow: hidden;">
-                        <div id="barra-bateria" style="width: 0%; height: 100%; background: #4CAF50; transition: all 0.8s ease-out;"></div>
+                    <div style="width: 100%; background: var(--bg-main); border-radius: 10px; height: 16px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); overflow: hidden;">
+                        <div id="barra-bateria" style="width: 0%; height: 100%; background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); transition: all 0.8s ease-out;"></div>
                     </div>
                 </div>
             </div>
@@ -179,19 +220,19 @@
             <div class="card" style="margin-top: 0; margin-bottom: 20px; flex: 0 0 auto;">
                 <h2>🖥️ Gêmeo Digital (Gabinete 3D)</h2>
                 <div style="perspective: 500px; padding: 10px 0;">
-                    <div style="background: #111; padding: 15px; border-radius: 8px; border: 2px solid #333; box-shadow: inset 0 0 20px #000, 0 10px 20px rgba(0,0,0,0.5); transform: rotateX(5deg);">
+                    <div style="background: var(--bg-main); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: inset 0 4px 15px rgba(0,0,0,0.3), 0 10px 20px rgba(0,0,0,0.2); transform: rotateX(5deg);">
                         <div style="display: flex; gap: 8px; justify-content: space-between;">
                             <div class="rectifier">
-                                <div id="rect-1-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 1</div>
+                                <div id="rect-1-led" class="led green" style="width:8px; height:8px;"></div><div class="rectifier-label">MOD 1</div>
                             </div>
                             <div class="rectifier">
-                                <div id="rect-2-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 2</div>
+                                <div id="rect-2-led" class="led green" style="width:8px; height:8px;"></div><div class="rectifier-label">MOD 2</div>
                             </div>
                             <div class="rectifier">
-                                <div id="rect-3-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 3</div>
+                                <div id="rect-3-led" class="led green" style="width:8px; height:8px;"></div><div class="rectifier-label">MOD 3</div>
                             </div>
                             <div class="rectifier">
-                                <div id="rect-4-led" class="led green" style="width:10px; height:10px;"></div><div style="font-size: 9px; color: #888; margin-top: 5px;">MOD 4</div>
+                                <div id="rect-4-led" class="led green" style="width:8px; height:8px;"></div><div class="rectifier-label">MOD 4</div>
                             </div>
                         </div>
                     </div>
@@ -200,30 +241,30 @@
 
             <h2>🚨 Eventos Ativos</h2>
             <div style="flex: 1;">
-                <p>Status: <span id="status_painel" style="font-weight:bold;">-</span></p>
-                <p>Último Alarme:<br> <span id="ultimo_alarme" style="display:block; margin-top:5px; padding:10px; background-color:#333; border-radius:4px;">-</span></p>
-                <p>Severidade: <span id="severidade">-</span></p>
+                <div style="margin-bottom: 10px; font-size: 14px;">Status: <span id="status_painel" style="font-weight:600;">-</span></div>
+                <div style="margin-bottom: 10px; font-size: 14px;">Severidade: <span id="severidade" style="font-weight:600;">-</span></div>
+                <div style="font-size: 14px; margin-top: 15px;">Último Alarme:<br> <span id="ultimo_alarme">-</span></div>
             </div>
             <button class="btn-reset" onclick="resetarBanco()">Zerar Histórico e Alarmes</button>
             
             <!-- SEÇÃO GERAR LAUDO -->
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #444;">
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-color);">
                 <h2 style="font-size: 16px;">📄 Gerar Laudo Técnico</h2>
-                <label style="font-size: 12px; color: #ccc;">A partir de:</label>
-                <input type="datetime-local" id="filtro_inicio" style="width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px;">
+                <label style="font-size: 12px; color: var(--text-muted); font-weight: 600;">A partir de:</label>
+                <input type="datetime-local" id="filtro_inicio" style="width: 100%; box-sizing: border-box; margin-bottom: 10px; margin-top: 4px;">
                 
-                <label style="font-size: 12px; color: #ccc;">Até:</label>
-                <input type="datetime-local" id="filtro_fim" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px;">
+                <label style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Até:</label>
+                <input type="datetime-local" id="filtro_fim" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; margin-top: 4px;">
                 
-                <button class="btn-reset" style="background-color: #2196F3; margin-top: 0; margin-bottom: 10px;" onclick="baixarLaudo()">BAIXAR LAUDO (PDF)</button>
-                <button class="btn-reset" style="background-color: #9C27B0; margin-top: 0;" onclick="abrirLaudo()">ANALISAR HISTÓRICO (NOVA TELA)</button>
+                <button class="btn-action" style="margin-bottom: 10px;" onclick="baixarLaudo()">📥 BAIXAR LAUDO (PDF)</button>
+                <button class="btn-action secondary" onclick="abrirLaudo()">📊 ANALISAR HISTÓRICO</button>
             </div>
         </div>
     </div>
 
     <!-- RODAPÉ -->
     <div class="footer">
-        Atalhos: <a href="#" onclick="abrirModalConfig(); return false;" style="color:#2196F3; margin-right:15px;">Configurações de Rede (SNMP/IP)</a> | <a href="#" style="color:#2196F3;">Registro de Eventos (Logs)</a>
+        Atalhos: <a href="#" onclick="abrirModalConfig(); return false;" style="color:var(--accent-cyan); text-decoration:none; margin-right:15px; font-weight:500;">Configurações de Rede (SNMP/IP)</a> | <a href="#" style="color:var(--accent-cyan); text-decoration:none; font-weight:500;">Registro de Eventos (Logs)</a>
     </div>
 
     <!-- MODAL DE CONFIGURAÇÕES DE REDE -->
@@ -231,24 +272,24 @@
         <div class="modal-content">
             <h2 style="margin-top:0;">⚙️ Configurações de Data Centers (MultiSite)</h2>
             
-            <div class="cfg-box" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="cfg-box" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
                 <div>
-                    <strong id="label_sim_titulo" style="display: block; margin-bottom: 3px; color: #4CAF50;">🎮 Modo Simulador Ativo</strong>
-                    <span id="label_sim_desc" style="font-size: 12px; color: #888;">Desmarque para iniciar a leitura dos painéis físicos na rede via SNMP.</span>
+                    <strong id="label_sim_titulo" style="display: block; margin-bottom: 5px; color: var(--accent-green); font-size: 15px;">🎮 Modo Simulador Ativo</strong>
+                    <span id="label_sim_desc" style="font-size: 12px; color: var(--text-muted);">Desmarque para iniciar a leitura dos painéis físicos na rede via SNMP.</span>
                 </div>
-                <input type="checkbox" id="toggle_simulador" onchange="salvarSimulador()" style="width: 20px; height: 20px; cursor: pointer; accent-color: #4CAF50;">
+                <input type="checkbox" id="toggle_simulador" onchange="salvarSimulador()" style="width: 24px; height: 24px; cursor: pointer; accent-color: var(--accent-green);">
             </div>
 
             <!-- PAINEL DE SCAN DE REDE (aparece apenas no Modo Real) -->
             <div id="painel-scan" class="scan-panel">
                 <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
                     <div>
-                        <strong style="font-size: 14px;">🔍 Varredura Automática de Rede</strong>
-                        <div style="font-size: 12px; color: #888; margin-top: 3px;">Localiza controladores Eltek/Smartpack respondendo SNMP na sua rede local.</div>
+                        <strong style="font-size: 14px; font-weight: 600;">🔍 Varredura Automática de Rede</strong>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Localiza controladores Eltek/Smartpack respondendo SNMP na sua rede local.</div>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                         <input type="text" id="scan_subnet" placeholder="Ex: 192.168.1.0/24 (auto)" title="Deixe em branco para detectar automaticamente"
-                            style="padding: 6px 10px; border-radius: 4px; background: #222; color: #fff; border: 1px solid #555; font-size: 12px; width: 190px; outline: none;">
+                            style="width: 190px;">
                         <button class="btn-scan" id="btn-iniciar-scan" onclick="iniciarScan()">
                             🔎 Escanear Rede
                         </button>
@@ -262,7 +303,7 @@
                 <input type="text" id="cfg_id" placeholder="ID (ex: s3)" style="width: 70px;">
                 <input type="text" id="cfg_nome" placeholder="Nome do Data Center" style="flex: 1;">
                 <input type="text" id="cfg_ip" placeholder="IP (192.168.x.x)" style="width: 140px;">
-                <button class="btn-header" style="background-color: #4CAF50; border: none;" onclick="salvarSite()">➕ Adicionar</button>
+                <button class="btn-header" style="background-color: var(--accent-green); color: #000; border: none; font-weight: 600;" onclick="salvarSite()">➕ Adicionar</button>
             </div>
             
             <table class="table-sites" id="tabela-sites">
@@ -271,7 +312,7 @@
             </table>
             
             <div style="text-align: right; margin-top: 20px;">
-                <button class="btn-reset" style="width: auto; padding: 8px 20px; background-color: #555; margin-top:0;" onclick="fecharModalConfig()">FECHAR</button>
+                <button class="btn-reset" style="width: auto; padding: 10px 24px; margin-top:0;" onclick="fecharModalConfig()">FECHAR</button>
             </div>
         </div>
     </div>
@@ -293,8 +334,8 @@
                 datasets: [{
                     label: 'Tensão do Barramento (V)',
                     data: [],
-                    borderColor: '#2196F3',
-                    backgroundColor: 'rgba(33, 150, 243, 0.15)',
+                    borderColor: '#00E5FF',
+                    backgroundColor: 'rgba(0, 229, 255, 0.15)',
                     borderWidth: 2,
                     fill: true,
                     tension: 0.4,
@@ -309,24 +350,24 @@
                 scales: {
                     x: {
                         ticks: {
-                            color: '#e0e0e0',
+                            color: '#94A3B8',
                             maxTicksLimit: 8,
                             maxRotation: 0,
                             autoSkip: true,
                             font: { size: 10 }
                         },
-                        grid: { color: '#333' }
+                        grid: { color: '#2A3655' }
                     },
                     y: {
-                        ticks: { color: '#e0e0e0', font: { size: 10 } },
-                        grid: { color: '#444' },
+                        ticks: { color: '#94A3B8', font: { size: 10 } },
+                        grid: { color: '#2A3655' },
                         suggestedMin: undefined,
                         suggestedMax: undefined,
                         grace: '5%'
                     }
                 },
                 plugins: {
-                    legend: { labels: { color: '#fff', font: { size: 11 } } }
+                    legend: { labels: { color: '#E2E8F0', font: { size: 12, family: 'Inter' } } }
                 }
             }
         });
@@ -341,8 +382,8 @@
                     {
                         label: 'Corrente (A)',
                         data: [],
-                        borderColor: '#FFC107',
-                        backgroundColor: 'rgba(255, 193, 7, 0.15)',
+                        borderColor: '#FFEA00',
+                        backgroundColor: 'rgba(255, 234, 0, 0.15)',
                         borderWidth: 2,
                         fill: true,
                         tension: 0.4,
@@ -353,8 +394,8 @@
                     {
                         label: 'Temperatura (°C)',
                         data: [],
-                        borderColor: '#FF9800',
-                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        borderColor: '#FF9100',
+                        backgroundColor: 'rgba(255, 145, 0, 0.1)',
                         borderWidth: 2,
                         fill: false,
                         tension: 0.4,
@@ -371,38 +412,38 @@
                 scales: {
                     x: {
                         ticks: {
-                            color: '#e0e0e0',
+                            color: '#94A3B8',
                             maxTicksLimit: 8,
                             maxRotation: 0,
                             autoSkip: true,
                             font: { size: 10 }
                         },
-                        grid: { color: '#333' }
+                        grid: { color: '#2A3655' }
                     },
                     y: {
                         type: 'linear',
                         position: 'left',
-                        ticks: { color: '#FFC107', font: { size: 10 } },
-                        grid: { color: '#444' },
+                        ticks: { color: '#FFEA00', font: { size: 10 } },
+                        grid: { color: '#2A3655' },
                         grace: '5%'
                     },
                     y1: {
                         type: 'linear',
                         position: 'right',
-                        ticks: { color: '#FF9800', font: { size: 10 } },
+                        ticks: { color: '#FF9100', font: { size: 10 } },
                         grid: { drawOnChartArea: false },
                         grace: '5%'
                     }
                 },
-                plugins: { legend: { labels: { color: '#fff', font: { size: 11 } } } }
+                plugins: { legend: { labels: { color: '#E2E8F0', font: { size: 12, family: 'Inter' } } } }
             }
         });
 
         // --- Funções de Interface (Tema e Janela) ---
         function updateChartColors(isLight) {
-            const gridColor = isLight ? '#e3e6f0' : '#444';
-            const textColor = isLight ? '#858796' : '#e0e0e0';
-            const legendColor = isLight ? '#2d3748' : '#fff';
+            const gridColor = isLight ? '#CBD5E1' : '#2A3655';
+            const textColor = isLight ? '#64748B' : '#94A3B8';
+            const legendColor = isLight ? '#0F172A' : '#E2E8F0';
 
             // Aplica as cores de tema claro/escuro nativamente nos gráficos
             graficoTensao.options.scales.x.ticks.color = textColor;
@@ -459,9 +500,9 @@
             const osc = audioContext.createOscillator();
             const gain = audioContext.createGain();
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(800, audioContext.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(300, audioContext.currentTime + 0.3);
-            gain.gain.setValueAtTime(0.08, audioContext.currentTime);
+            osc.frequency.setValueAtTime(880, audioContext.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.05, audioContext.currentTime);
             osc.connect(gain);
             gain.connect(audioContext.destination);
             osc.start();
@@ -503,12 +544,12 @@
             const painelScan = document.getElementById('painel-scan');
             if(ativo) {
                 titulo.innerText = "🎮 Modo Simulador Ativo";
-                titulo.style.color = "#4CAF50";
+                titulo.style.color = "var(--accent-green)";
                 desc.innerText = "Desmarque para iniciar a leitura dos painéis físicos na rede via SNMP.";
                 painelScan.classList.remove('visivel');
             } else {
                 titulo.innerText = "📡 Modo Real (SNMP) Ativo";
-                titulo.style.color = "#2196F3";
+                titulo.style.color = "var(--accent-cyan)";
                 desc.innerText = "Marque esta caixa caso queira voltar a utilizar dados fictícios gerados pelo servidor.";
                 painelScan.classList.add('visivel');
             }
@@ -560,13 +601,13 @@
             dispositivos.forEach(d => {
                 const classeItem = d.provavel_eltek ? 'eltek' : 'generico';
                 const badge = d.provavel_eltek
-                    ? '<span class="scan-badge">⚡ Eltek/Smartpack</span>'
+                    ? '<span class="scan-badge">⚡ Smartpack</span>'
                     : '<span class="scan-badge generico">SNMP Genérico</span>';
                 const idSugerido = `s${Date.now() % 1000 + counter}`;
                 el.innerHTML += `
                     <div class="scan-item ${classeItem}" id="scan-item-${d.ip.replace(/\./g,'-')}">
                         <div class="scan-item-info">
-                            <div class="scan-item-ip">${d.ip} <span style="font-size:11px; color:#888; font-weight:normal;">(SNMP: ${d.comunidade})</span></div>
+                            <div class="scan-item-ip">${d.ip} <span style="font-size:11px; color:var(--text-muted); font-weight:normal; font-family:'Inter',sans-serif;">(SNMP: ${d.comunidade})</span></div>
                             <div class="scan-item-desc" title="${d.descricao}">${d.descricao}</div>
                         </div>
                         ${badge}
@@ -651,7 +692,7 @@
             for (let id in sites) {
                 tbody.innerHTML += `<tr>
                     <td>${id}</td><td>${sites[id].nome}</td><td>${sites[id].ip}</td>
-                    <td><button class="btn-header" style="background-color:#F44336; border:none; padding:4px 8px;" onclick="deletarSite('${id}')">🗑️</button></td>
+                    <td><button class="btn-header" style="background-color:var(--accent-red); color:#fff; border:none; padding:6px 10px;" onclick="deletarSite('${id}')">🗑️</button></td>
                 </tr>`;
             }
         }
@@ -712,24 +753,27 @@
                     barra.style.width = tel.capacidade_bateria + '%';
                     
                     if (tel.capacidade_bateria > 60) {
-                        barra.style.backgroundColor = '#4CAF50';
-                        document.getElementById('txt-bateria').style.color = '#4CAF50';
+                        barra.style.backgroundColor = 'var(--accent-green)';
+                        barra.style.boxShadow = '0 0 10px var(--accent-green)';
+                        document.getElementById('txt-bateria').style.color = 'var(--accent-green)';
                     } else if (tel.capacidade_bateria > 30) {
-                        barra.style.backgroundColor = '#FFC107';
-                        document.getElementById('txt-bateria').style.color = '#FFC107';
+                        barra.style.backgroundColor = 'var(--accent-yellow)';
+                        barra.style.boxShadow = '0 0 10px var(--accent-yellow)';
+                        document.getElementById('txt-bateria').style.color = 'var(--accent-yellow)';
                     } else {
-                        barra.style.backgroundColor = '#F44336';
-                        document.getElementById('txt-bateria').style.color = '#F44336';
+                        barra.style.backgroundColor = 'var(--accent-red)';
+                        barra.style.boxShadow = '0 0 10px var(--accent-red)';
+                        document.getElementById('txt-bateria').style.color = 'var(--accent-red)';
                     }
                 }
 
                 // --- Atualizar o Gráfico ---
                 if (tel.tensao_barramento < 48.0) {
-                    graficoTensao.data.datasets[0].borderColor = '#F44336';
-                    graficoTensao.data.datasets[0].backgroundColor = 'rgba(244, 67, 54, 0.2)';
+                    graficoTensao.data.datasets[0].borderColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-red');
+                    graficoTensao.data.datasets[0].backgroundColor = 'rgba(255, 23, 68, 0.2)';
                 } else {
-                    graficoTensao.data.datasets[0].borderColor = '#2196F3';
-                    graficoTensao.data.datasets[0].backgroundColor = 'rgba(33, 150, 243, 0.2)';
+                    graficoTensao.data.datasets[0].borderColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-cyan');
+                    graficoTensao.data.datasets[0].backgroundColor = 'rgba(0, 229, 255, 0.15)';
                 }
                 
                 const agora = new Date().toLocaleTimeString();
@@ -773,10 +817,8 @@
                 // --- Animação do Gêmeo Digital ---
                 if (al.ultimo_alarme.includes('Retificador')) {
                     document.getElementById('rect-3-led').className = 'led red';
-                    document.getElementById('rect-3-led').style.boxShadow = '0 0 10px red';
                 } else {
                     document.getElementById('rect-3-led').className = 'led green';
-                    document.getElementById('rect-3-led').style.boxShadow = '0 0 10px #4CAF50';
                 }
 
                 // Atualiza LEDs do Cabeçalho
