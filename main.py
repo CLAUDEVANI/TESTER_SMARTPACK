@@ -726,12 +726,13 @@ def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: 
     try:
         from fpdf import FPDF
     except ImportError:
-        return {"erro": "Instale fpdf: pip install fpdf"}
+        raise HTTPException(status_code=500, detail="Instale a biblioteca fpdf: pip install fpdf")
 
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        from collections import Counter
         has_mpl = True
     except ImportError:
         has_mpl = False
@@ -782,9 +783,9 @@ def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: 
     if not dados:
         pdf.cell(0, 6, "Nenhum registro encontrado para os filtros aplicados.", ln=True)
     else:
-        tensoes   = [d[1] for d in dados]
-        correntes = [d[2] for d in dados]
-        temps     = [d[3] for d in dados]
+        tensoes   = [d[1] for d in dados if d[1] is not None] or [0.0]
+        correntes = [d[2] for d in dados if d[2] is not None] or [0.0]
+        temps     = [d[3] for d in dados if d[3] is not None] or [0.0]
         pdf.multi_cell(0, 6,
             f"Amostras analisadas: {len(dados)}\n"
             f"Tensão VCC: Mín {min(tensoes):.2f}V | Máx {max(tensoes):.2f}V | Média {sum(tensoes)/len(tensoes):.2f}V\n"
@@ -801,13 +802,96 @@ def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: 
             step = max(1, len(datas) // 10)
             plt.xticks(datas[::step], rotation=30, fontsize=8)
             plt.tight_layout()
-            plt.savefig("_temp_chart.png"); plt.close()
-            pdf.ln(2); pdf.image("_temp_chart.png", w=180)
-            os.remove("_temp_chart.png")
+            temp_img = f"_temp_chart_{site_id}.png"
+            plt.savefig(temp_img); plt.close()
+            pdf.ln(2); pdf.image(temp_img, w=180)
+            os.remove(temp_img)
 
     pdf.add_page()
     pdf.set_font("Arial", "B", 10)
-    pdf.cell(0, 6, "3. ANÁLISE CRÍTICA DE ALARMES", ln=True)
+    pdf.cell(0, 6, "3. DIAGNÓSTICO DE FALHAS E GRÁFICOS", ln=True)
+    pdf.set_font("Arial", size=10)
+
+    if not dados_alarmes or not has_mpl:
+        pdf.multi_cell(0, 6, "Dados insuficientes ou biblioteca matplotlib ausente para gerar os gráficos de diagnóstico no período.")
+    else:
+        # Prepara dados dos alarmes
+        eventos = [str(a[1]) for a in dados_alarmes]
+        severidades = [str(a[2]) for a in dados_alarmes]
+        ts_minutos = [str(a[0])[:16] for a in dados_alarmes] # Agrupa por 'YYYY-MM-DD HH:MM'
+
+        # --- Gráfico 1: Severidade ---
+        contagem_sev = Counter(severidades)
+        cores_map = {'Crítica': '#e74c3c', 'Critica': '#e74c3c', 'Alta': '#e67e22', 'Atenção': '#f1c40f', 'Atencao': '#f1c40f', 'Baixa': '#3498db'}
+        labels_sev = list(contagem_sev.keys())
+        valores_sev = list(contagem_sev.values())
+        cores = [cores_map.get(l, '#95a5a6') for l in labels_sev]
+
+        plt.figure(figsize=(6, 4))
+        plt.pie(valores_sev, labels=[l.encode('latin-1', 'ignore').decode('latin-1') for l in labels_sev], autopct='%1.1f%%', startangle=140, colors=cores)
+        plt.title("Nível de Criticidade dos Alarmes (Proporção)")
+        img_sev = f"_temp_sev_{site_id}.png"
+        plt.savefig(img_sev, bbox_inches='tight'); plt.close()
+
+        pdf.set_font("Arial", "B", 9)
+        pdf.cell(0, 6, "Figura 1: Distribuição de Severidade", ln=True)
+        pdf.image(img_sev, w=100)
+        os.remove(img_sev)
+        pdf.set_font("Arial", "I", 9)
+        pdf.multi_cell(0, 5, "Parecer: O gráfico demonstra a concentração de eventos críticos e altos, evidenciando o nível de estabilidade do site.")
+        pdf.ln(4)
+
+        # --- Gráfico 2: Frequência por Evento ---
+        contagem_eventos = Counter(eventos)
+        top_eventos = contagem_eventos.most_common(5)
+        labels_ev = [k[:30] + '...' if len(k)>30 else k for k, v in top_eventos]
+        valores_ev = [v for k, v in top_eventos]
+
+        plt.figure(figsize=(9, 3.5))
+        plt.barh(labels_ev[::-1], valores_ev[::-1], color='#8e44ad')
+        plt.title("Distribuição de Falhas por Evento (Top 5)")
+        plt.xlabel("Número de Ocorrências")
+        plt.tight_layout()
+        img_ev = f"_temp_ev_{site_id}.png"
+        plt.savefig(img_ev); plt.close()
+
+        pdf.set_font("Arial", "B", 9)
+        pdf.cell(0, 6, "Figura 2: Ocorrências por Tipo de Evento", ln=True)
+        pdf.image(img_ev, w=140)
+        os.remove(img_ev)
+        pdf.set_font("Arial", "I", 9)
+        pdf.multi_cell(0, 5, "Parecer: Identifica-se as principais causas raiz das paradas, exigindo foco ou manutenção imediata nestes subsistemas.")
+        pdf.ln(4)
+
+        # --- Gráfico 3: Comportamento Temporal ---
+        contagem_tempo = Counter(ts_minutos)
+        labels_t = sorted(contagem_tempo.keys())
+        valores_t = [contagem_tempo[k] for k in labels_t]
+
+        plt.figure(figsize=(11, 3))
+        plt.plot([l[5:] for l in labels_t], valores_t, marker='o', color='purple', linewidth=2)
+        plt.title("Volume de Alarmes Registrados por Minuto")
+        plt.xlabel("Data / Horário")
+        plt.ylabel("Qtd")
+        plt.grid(True, linestyle='--', alpha=0.7)
+        step = max(1, len(labels_t) // 10)
+        if step > 0:
+            plt.xticks(range(0, len(labels_t), step), [labels_t[i][5:] for i in range(0, len(labels_t), step)], rotation=30, fontsize=8)
+        plt.tight_layout()
+        img_time = f"_temp_time_{site_id}.png"
+        plt.savefig(img_time); plt.close()
+
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 9)
+        pdf.cell(0, 6, "Figura 3: Comportamento Temporal dos Alarmes", ln=True)
+        pdf.image(img_time, w=170)
+        os.remove(img_time)
+        pdf.set_font("Arial", "I", 9)
+        pdf.multi_cell(0, 5, "Parecer: O volume elevado de alarmes por minuto em curtos períodos indica uma falha sistêmica em cascata.")
+        pdf.ln(4)
+
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(0, 6, "4. CONCLUSÃO E PARECER TÉCNICO", ln=True)
     pdf.set_font("Arial", size=10)
 
     falha_ret  = any("Retificador" in str(a[1]) for a in dados_alarmes)
@@ -820,7 +904,7 @@ def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: 
     if falha_disj:
         texto += "- Disjuntor de bateria aberto detectado. Risco de perda de redundância.\n\n"
     if temps and max(temps) > 25.0:
-        texto += f"- Temperatura de pico {max(temps):.1f}°C acima do recomendado (≤25°C para VRLA).\n\n"
+        texto += f"- Temperatura de pico {max(temps):.1f}°C acima do recomendado (<= 25°C para VRLA).\n\n"
     if not texto:
         texto = "Nenhuma anomalia crítica detectada no período analisado.\n"
     pdf.multi_cell(0, 6, texto)
@@ -829,26 +913,11 @@ def gerar_relatorio_pdf(site_id: str = "s1", data_inicio: str = None, data_fim: 
     if (temps and max(temps) > 25.0) or falha_ret or falha_rede:
         parecer = "APTO COM RESTRIÇÕES"
     if falha_disj or any(a[2] == "Crítica" for a in dados_alarmes):
-        parecer = "INAPTO — RISCO OPERACIONAL IMINENTE"
+        parecer = "INAPTO - RISCO OPERACIONAL IMINENTE"
 
     pdf.ln(4)
     pdf.set_font("Arial", "B", 11)
     pdf.cell(0, 6, f"PARECER: {parecer}", ln=True)
-
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(0, 6, "ANEXO I — LOG DE ALARMES", ln=True)
-    pdf.set_font("Arial", "B", 8)
-    for lbl, w in [("Data/Hora", 38), ("Evento", 85), ("Severidade", 30), ("Status", 30)]:
-        pdf.cell(w, 6, lbl, border=1, align="C")
-    pdf.ln()
-    pdf.set_font("Arial", size=8)
-    for a in dados_alarmes:
-        pdf.cell(38, 6, str(a[0]), border=1, align="C")
-        pdf.cell(85, 6, str(a[1])[:45], border=1, align="C")
-        pdf.cell(30, 6, str(a[2]), border=1, align="C")
-        pdf.cell(30, 6, str(a[3]), border=1, align="C")
-        pdf.ln()
 
     path = f"laudo_{site_id}.pdf"
     pdf.output(path)
